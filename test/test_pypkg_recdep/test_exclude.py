@@ -1,5 +1,5 @@
 #! /usr/local/bin/python3
-"""Test common types."""
+"""Test exclude information."""
 
 # Copyright (c) 2025 Tom Björkholm
 # MIT License

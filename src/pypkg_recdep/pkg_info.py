@@ -28,7 +28,7 @@ class PkgKey:
 
     def __hash__(self) -> int:
         """Make hashable so PkgKey can be key in dict."""
-        return hash(repr(self))
+        return hash((self.name, self.version))
 
     def __lt__(self, other: object) -> bool:
         """Test if self is smaller than other."""
