@@ -36,7 +36,7 @@ To be written.
 
 ## Test summary
 
-* Test result: 10 passed in 3s
+* Test result: 25 passed in 3s
 * No Flake8 warnings.
 * No mypy errors found.
 * 0.0.2 built and tested using python version: Python 3.13.5
