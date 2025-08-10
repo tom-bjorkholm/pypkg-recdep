@@ -61,7 +61,7 @@ class ExcludeInfo():
 
         Read package name and package version pairs from from the
         comma separated values file and store the name/version pairs
-        in a dict that is internal to the ExcludeInfo object.ß
+        in a dict that is internal to the ExcludeInfo object.
         @param csv_filename The file name of the CSV file to read from.
         """
         name_col_name: str = ''
