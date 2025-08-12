@@ -5,6 +5,7 @@
 # MIT License
 
 import csv
+import sys
 from typing import Optional
 from pypkg_recdep.pkg_info import Pkgs
 
@@ -52,7 +53,7 @@ class ExcludeInfo():
         @param starts_with The (prefix) string to search for.
         """
         for elem in lst:
-            if elem.lower().startswith(starts_with.lower()):
+            if elem.lower().strip().startswith(starts_with.lower()):
                 return elem
         raise ValueError(f'Did not find "{starts_with}" in: {str(lst)}')
 
@@ -66,16 +67,25 @@ class ExcludeInfo():
         """
         name_col_name: str = ''
         ver_col_name: str = ''
-        # Determine column names first
-        with open(file=csv_filename, mode='r', encoding='utf-8') as file:
-            reader = csv.DictReader(file, dialect='unix')
-            for row in reader:
-                if name_col_name == '':
-                    keys = list(row.keys())
-                    name_col_name = self._find_first_like(keys, 'Name')
-                    ver_col_name = self._find_first_like(keys, 'Version')
-                self.store_pkg_ver(pkg=row[name_col_name],
-                                   version=row[ver_col_name])
+        try:
+            with open(file=csv_filename, mode='r', encoding='utf-8') as file:
+                reader = csv.DictReader(file, dialect='unix')
+                for row in reader:
+                    if name_col_name == '':  # Determine column names first
+                        keys = list(row.keys())
+                        name_col_name = self._find_first_like(keys, 'Name')
+                        ver_col_name = self._find_first_like(keys, 'Version')
+                    self.store_pkg_ver(pkg=row[name_col_name].strip(),
+                                       version=row[ver_col_name].strip())
+        except FileNotFoundError as exc:
+            errmsg = 'File with CSV data on packages to exclude details for '
+            errmsg += 'cannot be found.'
+            print(f'{errmsg}\n{str(exc)}', file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            errmsg = f'Unable to parse CSV file {csv_filename}\n{str(exc)}'
+            print(errmsg, file=sys.stderr)
+            sys.exit(1)
 
     def split_in_keep_and_exclude(self, pkgs:  Pkgs) -> tuple[Pkgs, Pkgs]:
         """Sort packages into keep and exclude.
@@ -89,7 +99,7 @@ class ExcludeInfo():
         exclude: Pkgs = {}
         for pkgkey, pkginfo in pkgs.items():
             if pkgkey.name in self.exclude_pkgs:
-                if pkgkey.version in self.exclude_pkgs[pkgkey.name]:
+                if str(pkgkey.version) in self.exclude_pkgs[pkgkey.name]:
                     exclude[pkgkey] = pkginfo
                     continue
             keep[pkgkey] = pkginfo

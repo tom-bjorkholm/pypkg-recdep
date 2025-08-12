@@ -26,6 +26,10 @@ class PkgKey:
         self.version: Final[Version] = \
             Version(version) if isinstance(version, str) else version
 
+    def __str__(self) -> str:
+        """Convert to string for debug printing."""
+        return str(self.__dict__)
+
     def __hash__(self) -> int:
         """Make hashable so PkgKey can be key in dict."""
         return hash((self.name, self.version))

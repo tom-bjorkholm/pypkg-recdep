@@ -116,3 +116,12 @@ def test_pkgs_dict(capsys):
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
+
+
+def test_pkg_key_str(capsys):
+    """Simple test of PkgKey.__str__."""
+    key = PkgKey(name='xyz', version='1.3.2')
+    assert "{'name': 'xyz', 'version': <Version('1.3.2')>}" == str(key)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
