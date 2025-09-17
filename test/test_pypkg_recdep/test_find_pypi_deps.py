@@ -8,7 +8,7 @@ from copy import deepcopy
 # from tempfile import TemporaryDirectory
 import pytest
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
-    select_default_lic_file
+    select_default_lic_file, T, select_lic_file_names
 
 
 class AStr(str):
@@ -68,6 +68,90 @@ def test_select_default_lic1(capsys,  # pylint: disable=too-many-arguments,too-m
     """Test OK cases of select_default_lic_file."""
     ret = select_default_lic_file(files_in_tar=deepcopy(list(map(typ, intar))),
                                   pkgid=pkgname, _tinfo=typ('a'))
+    out, err = capsys.readouterr()
+    assert res == ret
+    if ret:
+        assert isinstance(ret[0], typ)
+    assert '' == out
+    if msgs:
+        for m in msgs:
+            assert m in err
+    else:
+        assert '' == err
+
+
+@pytest.mark.parametrize('typ', [AStr, BStr])
+@pytest.mark.parametrize('ftar,mlic,pkgi,given',
+                         [([], [], 'abc', True),
+                          (['a', 'c/d'], None, 'efg', False),
+                          (['a/b', 'c/d'], ['d'], 'hjk', True)])
+def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              monkeypatch, ftar, mlic, pkgi, typ, given):
+    """Test selection of function to get license file names."""
+    given_called = 0
+    def_called = 0
+
+    def sel_giv_lic_file(files_in_tar: list[T], meta_lic_files: list[str],
+                         pkgid: str, _tinfo: T) -> list[T]:
+        """Mock select given license file."""
+        nonlocal given_called
+        given_called += 1
+        assert files_in_tar == ftar
+        assert meta_lic_files == mlic
+        assert pkgid == pkgi
+        assert _tinfo == typ('a')
+
+    def sel_def_lic_file(files_in_tar: list[T],
+                         pkgid: str, _tinfo: T) -> list[T]:
+        """Mock select default lic file."""
+        nonlocal def_called
+        def_called += 1
+        assert files_in_tar == ftar
+        assert pkgid == pkgi
+        assert _tinfo == typ('a')
+
+    mod = 'pypkg_recdep.find_pypi_deps.'
+    monkeypatch.setattr(mod + 'select_given_lic_file', sel_giv_lic_file)
+    monkeypatch.setattr(mod + 'select_default_lic_file', sel_def_lic_file)
+    select_lic_file_names(files_in_tar=deepcopy(list(map(typ, ftar))),
+                          meta_lic_files=deepcopy(mlic),
+                          pkgid=deepcopy(pkgi),
+                          tinfo=deepcopy(typ('a')))
+    out, err = capsys.readouterr()
+    if given:
+        assert given_called == 1
+        assert def_called == 0
+    else:
+        assert given_called == 0
+        assert def_called == 1
+    assert out == ''
+    assert err == ''
+
+
+@pytest.mark.parametrize('typ', [AStr, BStr])
+@pytest.mark.parametrize('intar,meta,res,msgs,pkgname',
+                         [(['a', 'b'], ['a'], ['a'], None, 'my_pkg'),
+                          (['x', 'b', 'c', 'd'], ['b', 'd'], ['b', 'd'],
+                           None, 'pkg_a'),
+                          (['a/c', 'd1', 'd/c', 'e/f'], ['c', 'f'],
+                           ['a/c', 'e/f'], None, 'pkg_b'),
+                          (['a', 'c'], ['d', 'e'], [],
+                           ['Failed to find license text file d in package.',
+                            'Failed to find license text file e in package.',
+                            'Package: pkg_c'], 'pkg_c'),
+                          (['a/c', 'd1', 'd/c', 'e/f'], ['c', 'xx', 'f'],
+                           ['a/c', 'e/f'],
+                           ['Failed to find license text file xx in package.',
+                            'Package: pkg_d'], 'pkg_d'),
+                          (['COPYING', 'a/LICENSE.txt'], None, ['COPYING'],
+                           None, 'pkg_a'),])
+def test_select_liv_filnames2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              intar, meta, res, msgs, typ, pkgname):
+    """Test OK cases of select_lic_file_names."""
+    ret = select_lic_file_names(files_in_tar=deepcopy(list(map(typ, intar))),
+                                meta_lic_files=deepcopy(meta),
+                                pkgid=deepcopy(pkgname),
+                                tinfo=deepcopy(typ('x')))
     out, err = capsys.readouterr()
     assert res == ret
     if ret:
