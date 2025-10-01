@@ -5,10 +5,12 @@
 # MIT License
 
 from copy import deepcopy
-# from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
+import shutil
 import pytest
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
-    select_default_lic_file, T, select_lic_file_names
+    select_default_lic_file, T, select_lic_file_names, \
+    get_lic_text_zip
 
 
 class AStr(str):
@@ -162,3 +164,30 @@ def test_select_liv_filnames2(capsys,  # pylint: disable=too-many-arguments,too-
             assert m in err
     else:
         assert '' == err
+
+
+@pytest.mark.parametrize('fname,licfnames,pkgid,restxt,errtxt',
+                         [('a.zip', ['a.txt'], 'pkg4',
+                           'This text is in a.txt 123\n', ''),
+                          ('b.zip', ['a.txt', 'subdir/c.md'], 'pkg5',
+                           'This text is in a.txt 123\n' +
+                           'This text is in subdir/c.md 567\n', ''),
+                          ('c.zip', None, 'pkg6',
+                           'This text is in b.md 345\n', ''),
+                          ('a.zip', ['all_files.txt'], 'pkg7',
+                           '',
+                           'Failed to find license text file ' +
+                           'all_files.txt in package.\nPackage: pkg7\n')])
+def test_get_lic_test_zip(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                          fname, licfnames, pkgid, restxt, errtxt):
+    """Test OK and error cases of get_lic_text_zip."""
+    with TemporaryDirectory() as dirname:
+        fullfname = dirname + '/' + deepcopy(fname)
+        shutil.copy(src='test/test_pypkg_recdep/pkgtest.zip', dst=fullfname)
+        ret = get_lic_text_zip(filename=fullfname,
+                               lic_files=deepcopy(licfnames),
+                               pkgid=deepcopy(pkgid))
+        assert restxt == ret
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert err == errtxt
