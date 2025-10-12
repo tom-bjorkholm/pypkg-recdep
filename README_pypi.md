@@ -189,5 +189,5 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 
 * Test result:
 * Flake8 errors/warnings.
-* No mypy errors found.
+* mypy errors
 * 0.1.1 built and tested using python version: Python 3.13.7

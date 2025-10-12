@@ -23,7 +23,15 @@ from packaging.licenses import canonicalize_license_expression, \
 from pypkg_recdep.pkg_info import PkgInfo, PkgKey, Pkgs, Requirements, \
     create_pkginfo
 
+
 T = TypeVar('T', str, tarfile.TarInfo)
+
+
+def _fname_to_str(file_in_tar: T) -> str:
+    """Get file name as str."""
+    if isinstance(file_in_tar, tarfile.TarInfo):
+        return file_in_tar.name
+    return str(file_in_tar)
 
 
 def select_given_lic_file(files_in_tar: list[T], meta_lic_files: list[str],
@@ -42,15 +50,19 @@ def select_given_lic_file(files_in_tar: list[T], meta_lic_files: list[str],
     """
     ret: list[T] = []
     for i in meta_lic_files:
-        if i in files_in_tar:
-            ret.append([f for f in files_in_tar if f == i][0])
-            continue
+        # if i in files_in_tar works only for some types T
         missing = True
         for j in files_in_tar:
-            if str(j).endswith('/' + i):
+            if _fname_to_str(j) == i:
                 ret.append(j)
                 missing = False
                 break
+        if missing:
+            for j in files_in_tar:
+                if _fname_to_str(j).endswith('/' + i):
+                    ret.append(j)
+                    missing = False
+                    break
         if missing:
             print(f'Failed to find license text file {i} in package.\n' +
                   f'Package: {pkgid}',
@@ -76,11 +88,12 @@ def select_default_lic_file(files_in_tar: list[T],
         for end in lic_end:
             license_filenames.append(start + end)
     for i in license_filenames:
-        if i in files_in_tar:
-            return [f for f in files_in_tar if f == i]
+        for j in files_in_tar:
+            if _fname_to_str(j) == i:
+                return [j]
     for i in license_filenames:
         for j in files_in_tar:
-            if str(j).endswith('/' + i):
+            if _fname_to_str(j).endswith('/' + i):
                 return [j]
     print('Failed to find license text in package (no named license file).\n' +
           f'Package: {pkgid}', file=sys.stderr)

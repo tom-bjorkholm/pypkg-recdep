@@ -7,10 +7,11 @@
 from copy import deepcopy
 from tempfile import TemporaryDirectory
 import shutil
+from tarfile import TarInfo
 import pytest
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
-    get_lic_text_zip
+    get_lic_text_zip, get_lic_text_tar, _fname_to_str
 
 
 class AStr(str):
@@ -21,7 +22,7 @@ class BStr(str):
     """Type Bstr based on str for testing."""
 
 
-@pytest.mark.parametrize('typ', [AStr, BStr])
+@pytest.mark.parametrize('typ', [AStr, BStr, TarInfo])
 @pytest.mark.parametrize('intar,meta,res,msgs,pkgname',
                          [(['a', 'b'], ['a'], ['a'], None, 'my_pkg'),
                           (['x', 'b', 'c', 'd'], ['b', 'd'], ['b', 'd'],
@@ -39,11 +40,15 @@ class BStr(str):
 def test_select_giv_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                          intar, meta, res, msgs, typ, pkgname):
     """Test OK cases of select_given_lic_file."""
-    ret = select_given_lic_file(files_in_tar=deepcopy(list(map(typ, intar))),
+    ret = select_given_lic_file(files_in_tar=list(map(typ, deepcopy(intar))),
                                 meta_lic_files=deepcopy(meta),
                                 pkgid=pkgname, _tinfo=typ('x'))
+    assert len(res) == len(ret)
+    retval: list[str] = []
+    for retelem in ret:
+        retval.append(_fname_to_str(retelem))
+    assert retval == res
     out, err = capsys.readouterr()
-    assert res == ret
     if ret:
         assert isinstance(ret[0], typ)
     assert '' == out
@@ -54,7 +59,7 @@ def test_select_giv_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-
         assert '' == err
 
 
-@pytest.mark.parametrize('typ', [AStr, BStr])
+@pytest.mark.parametrize('typ', [AStr, BStr, TarInfo])
 @pytest.mark.parametrize('intar,res,msgs,pkgname',
                          [([], [],
                            ['Failed to find license text in package (no named',
@@ -70,8 +75,12 @@ def test_select_default_lic1(capsys,  # pylint: disable=too-many-arguments,too-m
     """Test OK cases of select_default_lic_file."""
     ret = select_default_lic_file(files_in_tar=deepcopy(list(map(typ, intar))),
                                   pkgid=pkgname, _tinfo=typ('a'))
+    assert len(res) == len(ret)
+    retval: list[str] = []
+    for retelem in ret:
+        retval.append(_fname_to_str(retelem))
+    assert retval == res
     out, err = capsys.readouterr()
-    assert res == ret
     if ret:
         assert isinstance(ret[0], typ)
     assert '' == out
@@ -119,13 +128,13 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
                           meta_lic_files=deepcopy(mlic),
                           pkgid=deepcopy(pkgi),
                           tinfo=deepcopy(typ('a')))
-    out, err = capsys.readouterr()
     if given:
         assert given_called == 1
         assert def_called == 0
     else:
         assert given_called == 0
         assert def_called == 1
+    out, err = capsys.readouterr()
     assert out == ''
     assert err == ''
 
@@ -133,10 +142,13 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
 @pytest.mark.parametrize('typ', [AStr, BStr])
 @pytest.mark.parametrize('intar,meta,res,msgs,pkgname',
                          [(['a', 'b'], ['a'], ['a'], None, 'my_pkg'),
+                          (['./a', './b'], ['a'], ['./a'], None, 'my_pkg'),
                           (['x', 'b', 'c', 'd'], ['b', 'd'], ['b', 'd'],
                            None, 'pkg_a'),
                           (['a/c', 'd1', 'd/c', 'e/f'], ['c', 'f'],
                            ['a/c', 'e/f'], None, 'pkg_b'),
+                          (['./a/c', './d1', './d/c', './e/f'], ['c', 'f'],
+                           ['./a/c', './e/f'], None, 'pkg_b'),
                           (['a', 'c'], ['d', 'e'], [],
                            ['Failed to find license text file d in package.',
                             'Failed to find license text file e in package.',
@@ -147,17 +159,17 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
                             'Package: pkg_d'], 'pkg_d'),
                           (['COPYING', 'a/LICENSE.txt'], None, ['COPYING'],
                            None, 'pkg_a'),])
-def test_select_liv_filnames2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+def test_select_lic_filnames2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                               intar, meta, res, msgs, typ, pkgname):
     """Test OK cases of select_lic_file_names."""
     ret = select_lic_file_names(files_in_tar=deepcopy(list(map(typ, intar))),
                                 meta_lic_files=deepcopy(meta),
                                 pkgid=deepcopy(pkgname),
                                 tinfo=deepcopy(typ('x')))
-    out, err = capsys.readouterr()
     assert res == ret
     if ret:
         assert isinstance(ret[0], typ)
+    out, err = capsys.readouterr()
     assert '' == out
     if msgs:
         for m in msgs:
@@ -185,6 +197,34 @@ def test_get_lic_test_zip(capsys,  # pylint: disable=too-many-arguments,too-many
         fullfname = dirname + '/' + deepcopy(fname)
         shutil.copy(src='test/test_pypkg_recdep/pkgtest.zip', dst=fullfname)
         ret = get_lic_text_zip(filename=fullfname,
+                               lic_files=deepcopy(licfnames),
+                               pkgid=deepcopy(pkgid))
+        assert restxt == ret
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert err == errtxt
+
+
+@pytest.mark.parametrize('fname,licfnames,pkgid,restxt,errtxt',
+                         [('a.tar.gz', ['a.txt'], 'pkg4',
+                           'This text is in a.txt 123\n', ''),
+                          ('b.tgz', ['a.txt', 'subdir/c.md'], 'pkg5',
+                           'This text is in a.txt 123\n' +
+                           'This text is in subdir/c.md 567\n', ''),
+                          ('c.tar.gz', None, 'pkg6',
+                           'This text is in b.md 345\n', ''),
+                          ('a.tar.gz', ['all_files.txt'], 'pkg7',
+                           '',
+                           'Failed to find license text file ' +
+                           'all_files.txt in package.\nPackage: pkg7\n')])
+def test_get_lic_test_tar(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                          fname, licfnames, pkgid, restxt, errtxt):
+    """Test OK and error cases of get_lic_text_zip."""
+    with TemporaryDirectory() as dirname:
+        fullfname = dirname + '/' + deepcopy(fname)
+        shutil.copy(src='test/test_pypkg_recdep/pkgtest2.tar.gz',
+                    dst=fullfname)
+        ret = get_lic_text_tar(filename=fullfname,
                                lic_files=deepcopy(licfnames),
                                pkgid=deepcopy(pkgid))
         assert restxt == ret
