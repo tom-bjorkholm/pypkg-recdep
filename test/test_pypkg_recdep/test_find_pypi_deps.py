@@ -9,9 +9,12 @@ from tempfile import TemporaryDirectory
 import shutil
 from tarfile import TarInfo
 import pytest
+from requests import HTTPError
+from pypi_simple import NoDigestsError
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
-    get_lic_text_zip, get_lic_text_tar, _fname_to_str
+    get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
+    get_license_text
 
 
 class AStr(str):
@@ -231,3 +234,99 @@ def test_get_lic_test_tar(capsys,  # pylint: disable=too-many-arguments,too-many
     out, err = capsys.readouterr()
     assert '' == out
     assert err == errtxt
+
+
+class MockClient():  # pylint: disable=too-few-public-methods
+    """Mock PyPISImple client."""
+
+    def __init__(self, file, exception):
+        """Create a Mocked PYPISimple client object."""
+        self.file = file
+        self.exception = exception
+
+    def download_package(self, pkg, path, timeout):
+        """Get a file as if was downloaded."""
+        if self.exception is not None:
+            raise self.exception
+        shutil.copy(src=self.file, dst=path)
+        assert pkg is not None
+        assert timeout == 120.0
+
+
+class MockPkg():  # pylint: disable=too-few-public-methods
+    """Mock Package."""
+
+    def __init__(self, filename, project=None, version='1.2'):
+        """Create MockPkg object."""
+        self.filename = filename
+        if project is None:
+            self.project = filename
+        else:
+            self.project = project
+        self.version = version
+
+
+@pytest.mark.parametrize('fname,toname,licfnames,restxt',
+                         [('pkgtest2.tar.gz', 'a.tar.gz',
+                           ['a.txt'],
+                           'This text is in a.txt 123\n'),
+                          ('pkgtest2.tar.gz', 'b.tgz',
+                           ['a.txt', 'subdir/c.md'],
+                           'This text is in a.txt 123\n' +
+                           'This text is in subdir/c.md 567\n'),
+                          ('pkgtest2.tar.gz', 'c.tar.gz', None,
+                           'This text is in b.md 345\n'),
+                          ('pkgtest.zip', 'a.whl', ['a.txt'],
+                           'This text is in a.txt 123\n'),
+                          ('pkgtest.zip', 'b.zip', ['a.txt', 'subdir/c.md'],
+                           'This text is in a.txt 123\n' +
+                           'This text is in subdir/c.md 567\n'),
+                          ('pkgtest.zip', 'c.zip', None,
+                           'This text is in b.md 345\n',),])
+def test_get_license_text_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              fname, toname, licfnames, restxt):
+    """Test OK cases for get_license_text."""
+    mclient = MockClient(file='test/test_pypkg_recdep/' + fname,
+                         exception=None)
+    mpkg = MockPkg(filename=toname)
+    ret = get_license_text(client=mclient, pkg=mpkg, lic_files=licfnames)
+    out, err = capsys.readouterr()
+    assert restxt == ret
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('fname,licfnames,exc,pkg',
+                         [('pkgtest2.tar.gz',
+                           ['a.txt'], HTTPError('text 1'),
+                           MockPkg(filename='a.tgz',
+                                   project='pp', version='1.0')),
+                          ('pkgtest2.tar.gz',
+                           ['a.txt'], NoDigestsError('text 2'),
+                           MockPkg(filename='a.tgz',
+                                   project='p2', version='1.2'))])
+def test_get_license_text_exc1(capsys, fname, licfnames, exc, pkg):
+    """Test exception cases for get_license_text."""
+    mclient = MockClient(file='test/test_pypkg_recdep/' + fname,
+                         exception=deepcopy(exc))
+    ret = get_license_text(client=mclient, pkg=deepcopy(pkg),
+                           lic_files=licfnames)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == ret
+    assert str(exc) in err
+    assert f'Failed to download package {pkg.project} {pkg.version}' in err
+    assert str(exc) in err
+
+
+def test_get_license_text_nok1(capsys):
+    """Test not OK case for get_license_text."""
+    mclient = MockClient(file='test/test_pypkg_recdep/pkgtest2.tar.gz',
+                         exception=None)
+    mpkg = MockPkg(filename='a.txt')
+    ret = get_license_text(client=mclient, pkg=deepcopy(mpkg),
+                           lic_files=None)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == ret
+    assert 'Do not know how to unpack a.txt\n' == err
