@@ -7,14 +7,16 @@
 from copy import deepcopy
 from tempfile import TemporaryDirectory
 import shutil
+import pickle
 from tarfile import TarInfo
 import pytest
 from requests import HTTPError
 from pypi_simple import NoDigestsError
+from packaging.version import Version
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
-    get_license_text
+    get_license_text, get_environment, get_requirements
 
 
 class AStr(str):
@@ -330,3 +332,45 @@ def test_get_license_text_nok1(capsys):
     assert '' == out
     assert '' == ret
     assert 'Do not know how to unpack a.txt\n' == err
+
+
+@pytest.mark.parametrize('ver', ['3.12', '3.14'])
+def test_get_environment_ok(capsys, ver):
+    """Test OK cases of get_environment."""
+    version = Version(ver)
+    ret = get_environment(pyversion=version)
+    out, err = capsys.readouterr()
+    assert 'python_full_version' in ret
+    assert ret['python_full_version'] == ver + '.0'
+    assert 'python_version' in ret
+    assert ret['python_version'] == ver
+    assert 'os_name' in ret
+    assert 'platform_machine' in ret
+    assert '' == out
+    assert '' == err
+
+
+def test_get_requirements_ok1(capsys):
+    """Test 1 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 13
+        assert ret[0].name == 'openpyxl'
+        assert ret[0].specifier.contains(Version('3.1.5'))
+        assert ret[1].name == 'types-openpyxl'
+        assert ret[2].name == 'pylightxl'
+        assert ret[3].name == 'XlsxWriter'
+        assert ret[4].name == 'argcomplete'
+        assert ret[5].name == 'pypi-simple'
+        assert ret[6].name == 'requests'
+        assert ret[7].name == 'types-requests'
+        assert ret[8].name == 'packaging'
+        assert ret[9].name == 'pip'
+        assert ret[10].name == 'setuptools'
+        assert ret[11].name == 'build'
+        assert ret[12].name == 'wheel'
