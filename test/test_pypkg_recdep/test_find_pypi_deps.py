@@ -334,7 +334,7 @@ def test_get_license_text_nok1(capsys):
     assert 'Do not know how to unpack a.txt\n' == err
 
 
-@pytest.mark.parametrize('ver', ['3.12', '3.14'])
+@pytest.mark.parametrize('ver', ['3.13', '3.14'])
 def test_get_environment_ok(capsys, ver):
     """Test OK cases of get_environment."""
     version = Version(ver)
@@ -374,3 +374,107 @@ def test_get_requirements_ok1(capsys):
         assert ret[10].name == 'setuptools'
         assert ret[11].name == 'build'
         assert ret[12].name == 'wheel'
+
+
+def test_get_requirements_ok2(capsys):
+    """Test 2 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/jai_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 2
+        assert ret[0].name == 'more_itertools'
+        assert not ret[0].specifier.contains(Version('3.1.5'))
+        assert ret[0].specifier.contains(Version('4.1.5'))
+        assert ret[1].name == 'inflect'
+
+
+def test_get_requirements_ok3(capsys):
+    """Test 3 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/pyt_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 4
+        assert ret[0].name == 'iniconfig'
+        assert not ret[0].specifier.contains(Version('0.1.5'))
+        assert ret[0].specifier.contains(Version('1.1.5'))
+        assert ret[1].name == 'packaging'
+        assert ret[2].name == 'pluggy'
+        assert not ret[2].specifier.contains(Version('0.1.5'))
+        assert ret[2].specifier.contains(Version('1.5.5'))
+        assert not ret[2].specifier.contains(Version('2.1.5'))
+        assert ret[3].name == 'pygments'
+
+
+def test_get_requirements_ok4(capsys):
+    """Test 4 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/pyt_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        env = get_environment(pyversion=Version('3.10'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 6
+        assert ret[0].name == 'exceptiongroup'
+        assert ret[1].name == 'iniconfig'
+        assert not ret[1].specifier.contains(Version('0.1.5'))
+        assert ret[1].specifier.contains(Version('1.1.5'))
+        assert ret[2].name == 'packaging'
+        assert ret[3].name == 'pluggy'
+        assert not ret[3].specifier.contains(Version('0.1.5'))
+        assert ret[3].specifier.contains(Version('1.5.5'))
+        assert not ret[3].specifier.contains(Version('2.1.5'))
+        assert ret[4].name == 'pygments'
+        assert ret[5].name == 'tomli'
+
+
+def test_get_requirements_ok5(capsys):
+    """Test 5 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        del raw['requires_dist']
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 0
+
+
+def test_get_requirements_ok6(capsys):
+    """Test 6 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        raw['requires_dist'] = []
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+        assert len(ret) == 0
+
+
+def test_get_requirements_ok7(capsys):
+    """Test 7 get_rewuirememts from raw in stored file."""
+    with open(file='test/test_pypkg_recdep/jai_raw.pkl', mode='rb') as file:
+        raw = pickle.load(file=file)
+        raw['requires_dist'].insert(0, 'some strange text')
+        env = get_environment(pyversion=Version('3.13'))
+        ret = get_requirements(raw=raw, pyenv=env)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert 'Ignoring invalid requirement: some strange text' in err
+        assert 'Expected end or semicolon' in err
+        assert len(ret) == 2
+        assert ret[0].name == 'more_itertools'
+        assert not ret[0].specifier.contains(Version('3.1.5'))
+        assert ret[0].specifier.contains(Version('4.1.5'))
+        assert ret[1].name == 'inflect'
