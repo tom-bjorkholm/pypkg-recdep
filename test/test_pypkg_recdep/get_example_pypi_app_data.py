@@ -7,9 +7,16 @@ from packaging.version import Version
 from packaging.metadata import parse_email
 
 
+def pickle_to_file(dirname: str, fname_base: str, obj_name: str,
+                   obj):
+    """Pickle the object to file with constructed name."""
+    fname = dirname + '/' + fname_base + '_' + obj_name + '.pkl'
+    with open(file=fname, mode='wb') as file:
+        pickle.dump(obj, file=file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def get_example_pypi_app_data(pkgname: str, version: Version,
-                              page_fname: str, pkg_fname: str,
-                              raw_fname: str):
+                              fname_base: str, dirname: str):
     """Get test data from pypi on package and store to files."""
     with PyPISimple() as client:
         page = client.get_project_page(pkgname, timeout=30)
@@ -33,28 +40,26 @@ def get_example_pypi_app_data(pkgname: str, version: Version,
             sys.exit(1)
         meta = client.get_package_metadata(pkg, timeout=30.0)
         raw, _ = parse_email(meta)
-        with open(file=page_fname, mode='wb') as file:
-            pickle.dump(page, file=file, protocol=pickle.HIGHEST_PROTOCOL)
-        with open(file=pkg_fname, mode='wb') as file:
-            pickle.dump(pkg, file=file, protocol=pickle.HIGHEST_PROTOCOL)
-        with open(file=raw_fname, mode='wb') as file:
-            pickle.dump(raw, file=file, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle_to_file(dirname=dirname, fname_base=fname_base,
+                       obj_name='page', obj=page)
+        pickle_to_file(dirname=dirname, fname_base=fname_base,
+                       obj_name='pkg', obj=pkg)
+        pickle_to_file(dirname=dirname, fname_base=fname_base,
+                       obj_name='meta', obj=meta)
+        pickle_to_file(dirname=dirname, fname_base=fname_base,
+                       obj_name='raw', obj=raw)
+
+
+def example_data_from_pypi():
+    """Get test data from pypi on sevaral packages and store to files."""
+    dir_name = 'test/test_pypkg_recdep'
+    to_get = [('excel-list-transform', '0.8.3', 'elt'),
+              ('jaraco.itertools', '6.4.3', 'jai'),
+              ('pytest', '9.0.0', 'pyt')]
+    for (pkg_name, ver, fbase) in to_get:
+        get_example_pypi_app_data(pkgname=pkg_name, version=Version(ver),
+                                  fname_base=fbase, dirname=dir_name)
 
 
 if __name__ == '__main__':
-    DIR_NAME = 'test/test_pypkg_recdep/'
-    get_example_pypi_app_data(pkgname='excel-list-transform',
-                              version=Version('0.8.3'),
-                              page_fname=DIR_NAME + 'elt_page.pkl',
-                              pkg_fname=DIR_NAME + 'elt_pkg.pkl',
-                              raw_fname=DIR_NAME + 'elt_raw.pkl')
-    get_example_pypi_app_data(pkgname='jaraco.itertools',
-                              version=Version('6.4.3'),
-                              page_fname=DIR_NAME + 'jai_page.pkl',
-                              pkg_fname=DIR_NAME + 'jai_pkg.pkl',
-                              raw_fname=DIR_NAME + 'jai_raw.pkl')
-    get_example_pypi_app_data(pkgname='pytest',
-                              version=Version('9.0.0'),
-                              page_fname=DIR_NAME + 'pyt_page.pkl',
-                              pkg_fname=DIR_NAME + 'pyt_pkg.pkl',
-                              raw_fname=DIR_NAME + 'pyt_raw.pkl')
+    example_data_from_pypi()
