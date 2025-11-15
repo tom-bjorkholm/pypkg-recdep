@@ -13,10 +13,13 @@ import pytest
 from requests import HTTPError
 from pypi_simple import NoDigestsError
 from packaging.version import Version
+from packaging.requirements import Requirement
+from pypkg_recdep.pkg_info import Pkgs, PkgKey, PkgInfo
 from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
-    get_license_text, get_environment, get_requirements
+    get_license_text, get_environment, get_requirements, \
+    find_fulfill_req
 
 
 class AStr(str):
@@ -478,3 +481,38 @@ def test_get_requirements_ok7(capsys):
         assert not ret[0].specifier.contains(Version('3.1.5'))
         assert ret[0].specifier.contains(Version('4.1.5'))
         assert ret[1].name == 'inflect'
+
+
+@pytest.mark.parametrize('req,pkgs,res',
+                         [('foo <= 3.2', [('foo', '4.0.2'),
+                                          ('bar', '2.0'),
+                                          ('foo', '3.1.5')],
+                           ('foo', '3.1.5')),
+                          ('foo >= 3.2', [('foo', '4.0.2'),
+                                          ('bar', '2.0'),
+                                          ('foo', '3.1.5')],
+                           ('foo', '4.0.2')),
+                          ('bar', [('foo', '4.0.2'),
+                                   ('bar', '2.0'),
+                                   ('foo', '3.1.5')],
+                           ('bar', '2.0')),
+                          ('foo >= 5.2', [('foo', '4.0.2'),
+                                          ('bar', '2.0'),
+                                          ('foo', '3.1.5')],
+                           None)])
+def test_find_fullfill_req_ok1(capsys, req, pkgs, res):
+    """Test 1 of OK cases of find_fullfill_req."""
+    packages: Pkgs = {}
+    for name, ver in deepcopy(pkgs):
+        key = PkgKey(name=deepcopy(name), version=deepcopy(ver))
+        info = PkgInfo(key=key)
+        packages[key] = info
+    ret = find_fulfill_req(req=Requirement(deepcopy(req)), pkgs=packages)
+    out, err = capsys.readouterr()
+    if res is not None:
+        retkey = PkgKey(name=deepcopy(res[0]), version=deepcopy(res[1]))
+        assert ret == retkey
+    else:
+        assert ret is None
+    assert '' == out
+    assert '' == err
