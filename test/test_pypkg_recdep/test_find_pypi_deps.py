@@ -11,7 +11,8 @@ import pickle
 from tarfile import TarInfo
 import pytest
 from requests import HTTPError
-from pypi_simple import NoDigestsError
+from pypi_simple import NoDigestsError, DistributionPackage, \
+    ProjectPage
 from packaging.version import Version
 from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import Pkgs, PkgKey, PkgInfo
@@ -19,7 +20,7 @@ from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
     get_license_text, get_environment, get_requirements, \
-    find_fulfill_req
+    find_fulfill_req, py_oks, NoMatchingPackage
 
 
 class AStr(str):
@@ -516,3 +517,127 @@ def test_find_fullfill_req_ok1(capsys, req, pkgs, res):
         assert ret is None
     assert '' == out
     assert '' == err
+
+
+@pytest.mark.parametrize('pkgs,ver,res',
+                         [([('ab', '2.3.4', '< 3.12')],
+                           '3.11',
+                           [('ab', '2.3.4')]),
+                          ([('bc', '3.4', None)],
+                           '3.11',
+                           [('bc', '3.4')]),
+                          ([('cd', '2.4', '')],
+                           '3.11',
+                           [('cd', '2.4')]),
+                          ([('ab', '2.3.4', '< 3.12'),
+                            ('cd', '4.1', '>= 3.13'),
+                            ('ef', '5.2', None)],
+                           '3.10',
+                           [('ab', '2.3.4'),
+                            ('ef', '5.2')])])
+def test_pyoks_ok1(capsys, pkgs, ver, res):
+    """Test variation 1 OK cases for py_oks."""
+    dist_list: list[DistributionPackage] = []
+    for (pname, pver, pyreq) in deepcopy(pkgs):
+        dist_list.append(DistributionPackage(filename='fname', url='url',
+                                             project=pname, version=pver,
+                                             requires_python=pyreq,
+                                             package_type='whl', digests={},
+                                             has_sig=False))
+    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    out, err = capsys.readouterr()
+    assert len(ret) == len(res)
+    for retelem, reselem in zip(ret, deepcopy(res)):
+        assert retelem.project == reselem[0]
+        assert retelem.version == reselem[1]
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('pkgs,ver',
+                         [([('ab', '2.3.4', '< 3.12')],
+                           '3.13'),
+                          ([('cd', '3.4.5', '>= 3.12')],
+                           '3.10')])
+def test_pyoks_nok1(capsys, pkgs, ver):
+    """Test variation 1 not OK cases for py_oks."""
+    dist_list: list[DistributionPackage] = []
+    for (pname, pver, pyreq) in deepcopy(pkgs):
+        dist_list.append(DistributionPackage(filename='fname', url='url',
+                                             project=pname, version=pver,
+                                             requires_python=pyreq,
+                                             package_type='whl', digests={},
+                                             has_sig=False))
+    with pytest.raises(NoMatchingPackage) as exc:
+        _ = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    assert 'No package that can run python version.' in str(exc)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('pyver,pkgvers',
+                         [('3.10', ['0.7.9', '0.8.0']),
+                          ('3.11', ['0.5', '0.7.10', '0.8.1']),
+                          ('3.12', ['0.5', '0.7.11', '0.8.2']),
+                          ('3.13', ['0.5', '0.6', '0.6.2', '0.7.0',
+                                    '0.7.1', '0.7.3', '0.7.5',
+                                    '0.7.13', '0.8.3'])])
+def test_pyoks_ok2(capsys, pyver, pkgvers):
+    """Test variation 2 OK cases for py_oks."""
+    with open(file='test/test_pypkg_recdep/elt_page.pkl', mode='rb') as file:
+        page: ProjectPage = pickle.load(file=file)
+        ret = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        out, err = capsys.readouterr()
+        for pkg in ret:
+            assert pkg.version in pkgvers
+        retvers = [pkg.version for pkg in ret]
+        for elemver in retvers:
+            assert elemver in pkgvers
+        for ver in pkgvers:
+            assert ver in retvers
+        assert '' == out
+        assert '' == err
+
+
+@pytest.mark.parametrize('pyver', ['3.9', '2.7'])
+def test_pyoks_nok2(capsys, pyver):
+    """Test variation 2 not OK cases for py_oks."""
+    with open(file='test/test_pypkg_recdep/elt_page.pkl', mode='rb') as file:
+        page: ProjectPage = pickle.load(file=file)
+        with pytest.raises(NoMatchingPackage) as exc:
+            _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        assert 'No package that can run python version.' in str(exc)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+
+
+@pytest.mark.parametrize('page', ['elt', 'jai', 'pyt'])
+@pytest.mark.parametrize('pyver', ['3.10', '3.13'])
+def test_pyoks_ok3(capsys, page, pyver):
+    """Test variation 3 OK cases for py_oks."""
+    fname = 'test/test_pypkg_recdep/' + deepcopy(page) + '_page.pkl'
+    with open(file=fname, mode='rb') as file:
+        page: ProjectPage = pickle.load(file=file)
+        ret = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        out, err = capsys.readouterr()
+        assert ret is not None
+        assert len(ret) > 0
+        assert '' == out
+        assert '' == err
+
+
+@pytest.mark.parametrize('page', ['elt'])
+@pytest.mark.parametrize('pyver', ['3.1', '2.7'])
+def test_pyoks_nok3(capsys, page, pyver):
+    """Test variation 3 not OK cases for py_oks."""
+    fname = 'test/test_pypkg_recdep/' + deepcopy(page) + '_page.pkl'
+    with open(file=fname, mode='rb') as file:
+        page: ProjectPage = pickle.load(file=file)
+        with pytest.raises(NoMatchingPackage) as exc:
+            _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        assert 'No package that can run python version.' in str(exc)
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
