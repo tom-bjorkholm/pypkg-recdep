@@ -1,8 +1,9 @@
 #! /bin/zsh
 #
-# Copyright (c) 2024-2025 Tom Björkholm
+# Copyright (c) 2024 - 2025 Tom Björkholm
 # MIT License
 #
+PKG='pypkg_recdep'
 set -eE
 trap 'printf "\e[31m%s: %s\e[m\n" "Exiting due to error code from command" $?' ERR
 pytestflag=""
@@ -51,13 +52,14 @@ date +'Build started %Y-%m-%d %H:%M:%S %Z' > ${BUILDLOG}
 find src -name __pychache__ -exec rm -rf {} \;
 find test -name __pychache__ -exec rm -rf {} \;
 ${PYTHON} -m build | tee -a ${BUILDLOG}
-export WHL=`ls dist/*.whl | sed 'sXdist/XXg'`
+WHLBASE=`echo ${PKG} | sed 's/_/-/g'`
+export WHL=`ls dist/${PKG}*.whl | sed 'sXdist/XXg'`
 if [[ ! -a dist/${WHL} ]] ; then
   echo "Build of wheel failed." >& 2
   exit 1
 fi
-${PYTHON} -m pip uninstall -y pypkg-recdep 2>&1 | tee -a ${BUILDLOG}
-${PYTHON} -m pip install dist/*.whl 2>&1 | tee -a ${BUILDLOG}
+${PYTHON} -m pip uninstall -y ${WHLBASE} 2>&1 | tee -a ${BUILDLOG}
+${PYTHON} -m pip install dist/${PKG}*.whl 2>&1 | tee -a ${BUILDLOG}
 date +'Build ready %Y-%m-%d %H:%M:%S %Z' 2>&1 | tee -a ${BUILDLOG}
 for i in 1 2 3 4 5 ; do
   echo " "
@@ -69,7 +71,7 @@ set +eE
 ${PYTHON} -m flake8 --format=html --htmldir=${FLAKEOUTDIR} src test
 ${PYTHON} -m mypy src --strict --html-report ${MYPYOUTDIR} 2>&1 | tee ${MYPYOUTFILE}
 set -eE
-pytest --pylint ${pytestflag} --pylint-jobs=16 --html=${DOCOUTDIR}/pytest_report.html --cov=pypkg_recdep --cov-report=html:${DOCOUTDIR}/coverage 2>&1 | tee ${PYTESTLOG}
+pytest --pylint ${pytestflag} --pylint-jobs=16 --html=${DOCOUTDIR}/pytest_report.html --cov=${PKG} --cov-report=html:${DOCOUTDIR}/coverage 2>&1 | tee ${PYTESTLOG}
 testStatus=$?
 set +v
 cat > ${DOCINDEX} <<EOF
@@ -77,11 +79,11 @@ cat > ${DOCINDEX} <<EOF
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>pypkg-recdep report</title>
+  <title>${PKG} report</title>
 </head>
 <body>
 EOF
-date +"<h1>pypkg-recdep ${VER} test report %Y-%m-%d %H:%M </h1> " >> ${DOCINDEX}
+date +"<h1>${WHLBASE} ${VER} test report %Y-%m-%d %H:%M </h1> " >> ${DOCINDEX}
 echo "<h2>Building version ${VER}</h2>" >> ${DOCINDEX}
 echo '## Test summary' > ${TSUMFILE}
 echo '' >> ${TSUMFILE}
