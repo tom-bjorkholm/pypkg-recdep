@@ -5,14 +5,16 @@
 # MIT License
 
 from copy import deepcopy
+from typing import NamedTuple, Optional
 from tempfile import TemporaryDirectory
+import re
 import shutil
 import pickle
 from tarfile import TarInfo
 import pytest
 from requests import HTTPError
 from pypi_simple import NoDigestsError, DistributionPackage, \
-    ProjectPage
+    ProjectPage, NoMetadataError, DigestMismatchError  # , NoSuchProjectError
 from packaging.version import Version
 from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import Pkgs, PkgKey, PkgInfo
@@ -20,7 +22,7 @@ from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
     get_license_text, get_environment, get_requirements, \
-    find_fulfill_req, py_oks, NoMatchingPackage
+    find_fulfill_req, py_oks, NoMatchingPackage, meta_ok
 
 
 class AStr(str):
@@ -641,3 +643,84 @@ def test_pyoks_nok3(capsys, page, pyver):
         out, err = capsys.readouterr()
         assert '' == out
         assert '' == err
+
+
+def get_fake_pkglist(pkl_base_name: str, has_meta: list[bool]):
+    """Get a fake list of packages."""
+    fname = 'test/test_pypkg_recdep/' + deepcopy(pkl_base_name) + '_page.pkl'
+    ret: list[DistributionPackage] = []
+    with open(file=fname, mode='rb') as file:
+        page: ProjectPage = pickle.load(file=file)
+        pkg_index = 0
+        for what_meta in has_meta:
+            if pkg_index >= len(page.packages):
+                pkg_index = 0
+            pkg = deepcopy(page.packages[pkg_index])
+            pkg.has_metadata = what_meta
+            ret.append(pkg)
+            pkg_index += 1
+        return ret
+
+
+class MockMetaSpec(NamedTuple):
+    """Spec for one metadata."""
+
+    pkl_base: str
+    metaver: str
+    exception: Optional[Exception]
+
+
+class MockMetaClient():  # pylint: disable=too-few-public-methods
+    """Moch PyPISimple to get fake metadata."""
+
+    def __init__(self, spec: list[MockMetaSpec]) -> None:
+        """Construct a MockMetaClient object."""
+        self.spec: list[MockMetaSpec] = spec
+
+    def get_package_metadata(self, pkg: DistributionPackage,
+                             timeout: float = 30.0) -> str:
+        """Get a fake metadata string object."""
+        assert pkg is not None
+        assert timeout is not None
+        if not self.spec:
+            raise NoMetadataError
+        if len(self.spec) < 1:
+            raise NoMetadataError
+        this_spec = self.spec.pop(0)
+        if this_spec.exception is not None:
+            raise this_spec.exception
+        fname = 'test/test_pypkg_recdep/' + deepcopy(this_spec.pkl_base) + \
+            '_meta.pkl'
+        with open(file=fname, mode='rb') as file:
+            meta: str = pickle.load(file=file)
+        if this_spec.metaver is None:
+            return re.sub(r'Metadata-Version:[0-9. ]*\n', '', meta,
+                          flags=re.IGNORECASE)
+        return re.sub(r'Metadata-Version:[0-9. ]*\n',
+                      'Metadata-Version: ' + this_spec.metaver + '\n',
+                      meta,
+                      flags=re.IGNORECASE)
+
+
+@pytest.mark.parametrize('has_metas,page_pkl,mspecs,mver,msgs,retstart',
+                         [([False, False], 'elt',
+                           [], None, None, None)])  # TODO more test cases
+def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                     has_metas: list[bool], page_pkl: str,
+                     mspecs: list[MockMetaSpec], mver: Optional[Version],
+                     msgs: Optional[list[str]], retstart: Optional[str]):
+    """Test first OK cases of meta_ok."""
+    mock = MockMetaClient(spec=deepcopy(mspecs))
+    pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
+    _, res = meta_ok(client=mock, pkgs=pkgs, metaversion=mver)
+    out, err = capsys.readouterr()
+    if not retstart:
+        assert not res
+    else:
+        assert res.startswith(retstart)
+    assert '' == out
+    if msgs is None:
+        assert '' == err
+    else:
+        for msg in msgs:
+            assert msg in err
