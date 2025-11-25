@@ -268,7 +268,9 @@ def py_oks(pkgs: list[DistributionPackage],
         if req.specifier.contains(pyversion):
             ret.append(pkg)
     if not ret:
-        raise NoMatchingPackage('No package that can run python version.')
+        excstr = f'No package of {pkgs[0].project} that can run on ' + \
+            f'Python version {str(pyversion)}.'
+        raise NoMatchingPackage(excstr)
     return ret
 
 
@@ -308,7 +310,8 @@ def meta_ok(client: PyPISimple, pkgs: list[DistributionPackage],
                 no_meta.append(pkg)
     if no_meta:
         return (no_meta[0], '')
-    raise NoMatchingPackage('All packages have not OK metadata version.')
+    excstr = f'No packages of {pkgs[0].project} have OK metadata version.'
+    raise NoMatchingPackage(excstr)
 
 
 def set_pkginfo_from_raw(info: PkgInfo, raw: RawMetadata,

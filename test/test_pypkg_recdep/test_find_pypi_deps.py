@@ -564,7 +564,9 @@ def test_pyoks_ok1(capsys, pkgs, ver, res):
 def test_pyoks_nok1(capsys, pkgs, ver):
     """Test variation 1 not OK cases for py_oks."""
     dist_list: list[DistributionPackage] = []
+    p_name: Optional[str] = None
     for (pname, pver, pyreq) in deepcopy(pkgs):
+        p_name = pname
         dist_list.append(DistributionPackage(filename='fname', url='url',
                                              project=pname, version=pver,
                                              requires_python=pyreq,
@@ -572,7 +574,8 @@ def test_pyoks_nok1(capsys, pkgs, ver):
                                              has_sig=False))
     with pytest.raises(NoMatchingPackage) as exc:
         _ = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
-    assert 'No package that can run python version.' in str(exc)
+    assert f'No package of {p_name} that can run on Python version {ver}.' in \
+        str(exc)
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -609,7 +612,8 @@ def test_pyoks_nok2(capsys, pyver):
         page: ProjectPage = pickle.load(file=file)
         with pytest.raises(NoMatchingPackage) as exc:
             _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
-        assert 'No package that can run python version.' in str(exc)
+        assert 'No package of excel_list_transform that can run on Python ' + \
+            f'version {pyver}.' in str(exc)
         out, err = capsys.readouterr()
         assert '' == out
         assert '' == err
@@ -639,7 +643,8 @@ def test_pyoks_nok3(capsys, page, pyver):
         page: ProjectPage = pickle.load(file=file)
         with pytest.raises(NoMatchingPackage) as exc:
             _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
-        assert 'No package that can run python version.' in str(exc)
+        assert 'No package of excel_list_transform that can run on ' + \
+            f'Python version {pyver}.' in str(exc)
         out, err = capsys.readouterr()
         assert '' == out
         assert '' == err
