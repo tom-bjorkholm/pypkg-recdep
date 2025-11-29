@@ -296,7 +296,7 @@ def meta_ok(client: PyPISimple, pkgs: list[DistributionPackage],
                 if not metaversion:
                     return (pkg, meta)
                 raw, _ = parse_email(meta)
-                ver = raw['metadata_version']
+                ver = raw.get('metadata_version')
                 if not ver:
                     no_meta.append(pkg)
                 else:

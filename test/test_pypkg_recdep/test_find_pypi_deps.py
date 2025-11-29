@@ -707,17 +707,64 @@ class MockMetaClient():  # pylint: disable=too-few-public-methods
                       flags=re.IGNORECASE)
 
 
+DIG_MIS_ERROR = DigestMismatchError(algorithm='a', expected_digest='1234',
+                                    actual_digest='123', url='http://a.com')
+NO_DIG_ERROR = NoDigestsError(url='http://a.com')
+HTTP_ERROR = HTTPError()
+NO_META_ERROR = NoMetadataError(filename='a.txt', url='http://a.com')
+
+
 @pytest.mark.parametrize('has_metas,page_pkl,mspecs,mver,msgs,retstart',
                          [([False, False], 'elt',
-                           [], None, None, None)])  # TODO more test cases
+                           [], None, None, None),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', '2.4', None),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           None, 'Metadata-Version: 2.2'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', '2.4', None),
+                            MockMetaSpec('elt', '2.2', None)], None,
+                           None, 'Metadata-Version: 2.4'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, None),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           None, 'Metadata-Version: 2.2'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, None),
+                            MockMetaSpec('elt', '2.4', None)], '2.3',
+                           None, None),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, DIG_MIS_ERROR),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           ['Failed to get metadata for excel_list_transform',
+                            'a digest of'],
+                           'Metadata-Version: 2.2'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, NO_DIG_ERROR),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           ['Failed to get metadata for excel_list_transform',
+                            'No digests'],
+                           'Metadata-Version: 2.2'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, HTTP_ERROR),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           ['Failed to get metadata for excel_list_transform'],
+                           'Metadata-Version: 2.2'),
+                          ([True, True], 'elt',
+                           [MockMetaSpec('elt', None, NO_META_ERROR),
+                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                           ['Failed to get metadata for excel_list_transform',
+                            'No distribution metadata found'],
+                           'Metadata-Version: 2.2')])
 def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                      has_metas: list[bool], page_pkl: str,
                      mspecs: list[MockMetaSpec], mver: Optional[Version],
                      msgs: Optional[list[str]], retstart: Optional[str]):
     """Test first OK cases of meta_ok."""
-    mock = MockMetaClient(spec=deepcopy(mspecs))
+    mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
-    _, res = meta_ok(client=mock, pkgs=pkgs, metaversion=mver)
+    metaversion = None if mver is None else Version(mver)
+    _, res = meta_ok(client=mock, pkgs=pkgs, metaversion=metaversion)
     out, err = capsys.readouterr()
     if not retstart:
         assert not res
@@ -729,3 +776,22 @@ def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-posi
     else:
         for msg in msgs:
             assert msg in err
+
+
+@pytest.mark.parametrize('has_metas,page_pkl,mspecs,mver',
+                         [([True, True], 'elt',
+                           [MockMetaSpec('elt', '2.4', None),
+                            MockMetaSpec('elt', '2.6', None)], '2.3')])
+def test_meta_ok_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                      has_metas: list[bool], page_pkl: str,
+                      mspecs: list[MockMetaSpec], mver: Optional[Version]):
+    """Test first OK cases of meta_ok."""
+    mock = MockMetaClient(spec=mspecs)
+    pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
+    metaversion = None if mver is None else Version(mver)
+    with pytest.raises(NoMatchingPackage) as exc:
+        _, _2 = meta_ok(client=mock, pkgs=pkgs, metaversion=metaversion)
+    out, err = capsys.readouterr()
+    assert 'No packages of excel_list_transform have OK' in str(exc)
+    assert '' == out
+    assert '' == err
