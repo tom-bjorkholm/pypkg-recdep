@@ -1,5 +1,5 @@
 #! /usr/local/bin/python3
-"""Test exclude information."""
+"""Test finding dependencies in PyPI."""
 
 # Copyright (c) 2025 Tom Björkholm
 # MIT License
@@ -14,7 +14,7 @@ from tarfile import TarInfo
 import pytest
 from requests import HTTPError
 from pypi_simple import NoDigestsError, DistributionPackage, \
-    ProjectPage, NoMetadataError, DigestMismatchError  # , NoSuchProjectError
+    ProjectPage, NoMetadataError, DigestMismatchError
 from packaging.version import Version
 from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import Pkgs, PkgKey, PkgInfo
