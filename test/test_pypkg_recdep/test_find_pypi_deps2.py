@@ -5,11 +5,13 @@
 # MIT License
 
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, NamedTuple
+from itertools import cycle
 # from tempfile import TemporaryDirectory
 # import shutil
-# import pickle
+import pickle
 import pytest
+from pypi_simple import ProjectPage, DistributionPackage
 from packaging.version import Version
 from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
@@ -104,3 +106,66 @@ def test_set_pkginfo_from_raw_ok2(capsys, surl, skey):
         assert expected_value == info[expected_key]
     assert '' == err
     assert '' == out
+
+
+class MockSpecMeta(NamedTuple):
+    """Spec for package and metadata."""
+
+    version: str
+    metaversion: str
+    reqs: Optional[list[str]]
+
+
+class MockSpecPage(NamedTuple):
+    """Spec for pages with packages and their metadata."""
+
+    name: str
+    base: str
+    metas: list[MockSpecMeta]
+
+
+class MockClient1:
+    """A mock of PyPISimple client."""
+
+    def __init__(self, spec: list[MockSpecPage]) -> None:
+        """Construct a mocked PyPI´-SImple client."""
+        self.spec = spec
+        self.metaindex = 0
+        self.pageindex = len(spec)
+
+    def get_project_page(self, name: str, timeout: float) -> ProjectPage:
+        """Get a mocked project page."""
+        assert timeout is not None
+        assert name is not None
+        self.pageindex += 1
+        if self.pageindex >= len(self.spec):
+            self.pageindex = 0
+        thispage = self.spec[self.pageindex]
+        self.metaindex = 0
+        fname = 'test/test_pypkg_recdep/' + deepcopy(thispage.base) + \
+            '_page.pkl'
+        with open(file=fname, mode='rb') as file:
+            page: ProjectPage = pickle.load(file=file)
+            pkgs = deepcopy(page.packages)
+            page.packages = []
+            for pkg, mspec in zip(thispage.metas, cycle(pkgs)):
+                pkg.name = deepcopy(thispage.name)
+                pkg.version = deepcopy(mspec.version)
+                page.packages.append(pkg)
+            return page
+
+    def get_package_metadata(self, pkg: DistributionPackage,
+                             timeout: float) -> str:
+        """Get mocked metadata for a package."""
+        assert timeout is not None
+        thispage = self.spec[self.pageindex]
+        mspec = thispage.metas[self.metaindex]
+        self.metaindex += 1
+        if self.metaindex >= len(mspec):
+            self.metaindex = 0
+        fname = 'test/test_pypkg_recdep/' + deepcopy(thispage.base) + \
+            '_meta.pkl'
+        with open(file=fname, mode='rb') as file:
+            meta: str = pickle.load(file=file)
+            # TODO adjust name, version, metadata-version and reqs in meta
+            return meta
