@@ -17,7 +17,52 @@ from packaging.version import Version
 from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
 from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
-    get_environment, get_best_pkg, NoMatchingPackage
+    get_environment, get_best_pkg, NoMatchingPackage, get_license_name, \
+    get_lic_name_fr_classifier
+
+
+@pytest.mark.parametrize('rawlic,res',
+                         [('MIT', 'MIT'), ('mit', 'MIT'),
+                          ('MIT License', 'MIT License'),
+                          ('MITLIKE', 'MITLIKE')])
+def test_get_lic_name(capsys, rawlic, res):
+    """Test OK cases if get_license_name."""
+    ret = get_license_name(raw_lic_name=deepcopy(rawlic))
+    out, err = capsys.readouterr()
+    assert res == ret
+    assert '' == out
+    assert '' == err
+
+
+CLS1 = [
+    'Programming Language :: Python :: 3',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent'
+]
+CLS2 = [
+    'Programming Language :: Python :: 3',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent',
+    'License :: OSI Approved :: BSD'
+]
+CLS3 = [
+    'Programming Language :: Python :: 3',
+    'Operating System :: OS Independent'
+]
+
+
+@pytest.mark.parametrize('classf,res',
+                         [(CLS1, 'MIT License'),
+                          (CLS2, 'MIT License, BSD'),
+                          (CLS3, None), ([], None),
+                          (None, None)])
+def test_get_lic_name_fr_clf(capsys, classf, res):
+    """Test OK cases of get_lic_name_fr_classifier."""
+    ret = get_lic_name_fr_classifier(classf=classf)
+    out, err = capsys.readouterr()
+    assert res == ret
+    assert '' == out
+    assert '' == err
 
 
 def compare_to(expected: dict[str, Optional[str | list]]) -> PkgInfo:
