@@ -314,6 +314,27 @@ def meta_ok(client: PyPISimple, pkgs: list[DistributionPackage],
     raise NoMatchingPackage(excstr)
 
 
+def get_license_name(raw_lic_name: str) -> str:
+    """Get canonical license name."""
+    try:
+        return str(canonicalize_license_expression(raw_lic_name))
+    except InvalidLicenseExpression:
+        return raw_lic_name
+
+
+def get_lic_name_fr_classifier(classf: Optional[list[str]]) -> Optional[str]:
+    """Get license name from classifiers."""
+    if not classf:
+        return None
+    lic_lines = [x for x in classf if x.startswith('License ')]
+    if not lic_lines:
+        return None
+    lics: list[str] = []
+    for licline in lic_lines:
+        lics.append(get_license_name(licline.split(' :: ')[-1]))
+    return ', '.join(lics)
+
+
 def set_pkginfo_from_raw(info: PkgInfo, raw: RawMetadata,
                          pyenv: Environment) -> None:
     """Set PkgInfo data from raw from metadata.
@@ -329,11 +350,9 @@ def set_pkginfo_from_raw(info: PkgInfo, raw: RawMetadata,
     if 'metadata_version' in raw:
         info['metadata_version'] = Version(raw['metadata_version'])
     if 'license' in raw and raw['license']:
-        try:
-            info['license'] = \
-                str(canonicalize_license_expression(raw['license']))
-        except InvalidLicenseExpression:
-            info['license'] = raw['license']
+        info['license'] = get_license_name(raw['license'])
+    elif 'classifiers' in raw:
+        info['license'] = get_lic_name_fr_classifier(raw['classifiers'])
     if 'project_urls' in raw:
         info['project_urls'] = raw['project_urls']
         for key in ['Source', 'source', 'GitHub', 'github', 'Repository',
@@ -374,7 +393,7 @@ def get_best_pkg(client: PyPISimple, req: Requirement, pyversion: Version,
     pkgs_reqok = [p for p in pkgs if p.version and
                   req.specifier.contains(p.version)]
     if not pkgs_reqok:
-        raise NoMatchingPackage(f'No match for {str(req)}')
+        raise NoMatchingPackage(f'No match for version {str(req)}')
     pkgs_pyok = py_oks(pkgs=pkgs_reqok, pyversion=pyversion)
     pkg, meta = meta_ok(client=client, pkgs=pkgs_pyok,
                         metaversion=metaversion)
