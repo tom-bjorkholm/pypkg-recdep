@@ -18,7 +18,7 @@ from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
 from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
     get_environment, get_best_pkg, NoMatchingPackage, get_license_name, \
-    get_lic_name_fr_classifier
+    get_lic_name_fr_classifier, resolve_all_dependencies
 
 
 @pytest.mark.parametrize('rawlic,res',
@@ -182,15 +182,22 @@ class LookupWhat(IntEnum):
 
 
 class MockClient1:
-    """A mock of PyPISimple client."""
+    """A mock of PyPISimple client with context manager support."""
 
     def __init__(self, spec: list[MockSpecPage],
                  lookup: LookupWhat) -> None:
-        """Construct a mocked PyPI´-SImple client."""
+        """Construct a mocked PyPI-Simple client."""
         self.spec: list[MockSpecPage] = spec
         self.lookup: LookupWhat = lookup
         self.metaindex = 0
         self.pageindex = len(spec)
+
+    def __enter__(self) -> 'MockClient1':
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager."""
 
     def lookup_page(self, name: str) -> None:
         """Position self page index according to lookup."""
@@ -277,6 +284,11 @@ class MockClient1:
                                 val=[mspec.py_req])
             meta = self.rewrite(text=meta, key='Requires-Dist',
                                 val=mspec.reqs)
+            # Change License-File for 'jai' and 'pyt' base to avoid missing
+            # LICENSE file issue in pkgtest.zip
+            if thispage.base in ('jai', 'pyt'):
+                meta = self.rewrite(text=meta, key='License-File',
+                                    val=['LICENSE.txt'])
             return meta
 
     def download_package(self, pkg, path: str, timeout: float) -> None:
@@ -436,3 +448,245 @@ def test_get_best_pkg_nok1(capsys, cspec, req, pyv, excmsg):
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
+
+
+# Tests for resolve_all_dependencies
+
+
+RAD_M1 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=['def >= 2', 'fgh >= 1.0.1']),
+    MockSpecMeta(meta=True, version='1.5', metaversion='2.2',
+                 py_req=' >= 3.11', reqs=['def >= 2', 'fgh >= 1.0.1']),
+    MockSpecMeta(meta=True, version='2.0', metaversion='2.4',
+                 py_req=' >= 3.12', reqs=['def >= 2', 'fgh >= 1.0.1'])
+]
+
+RAD_M2 = [
+    MockSpecMeta(meta=True, version='2.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=['fgh >= 1.0.1']),
+    MockSpecMeta(meta=True, version='2.5', metaversion='2.2',
+                 py_req=' >= 3.11', reqs=['fgh >= 1.2'])
+]
+
+RAD_M3 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.9', reqs=[]),
+    MockSpecMeta(meta=True, version='1.0.1', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=[]),
+    MockSpecMeta(meta=True, version='1.2', metaversion='2.2',
+                 py_req=' >= 3.11', reqs=[]),
+    MockSpecMeta(meta=True, version='1.5', metaversion='2.3',
+                 py_req=' >= 3.12', reqs=[])
+]
+
+RAD_C1 = [
+    MockSpecPage(name='abc', base='elt', metas=RAD_M1),
+    MockSpecPage(name='def', base='jai', metas=RAD_M2),
+    MockSpecPage(name='fgh', base='pyt', metas=RAD_M3)
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,exp_keys',
+                         [('abc', '3.14', None,
+                           [('abc', '2.0'), ('def', '2.5'), ('fgh', '1.5')]),
+                          ('abc', '3.11', None,
+                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')]),
+                          ('abc', '3.10', None,
+                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')]),
+                          ('abc', '3.14', '2.2',
+                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')]),
+                          ('abc', '3.11', '2.1',
+                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')])
+                          ])
+def test_resolve_all_dependencies_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                      monkeypatch, root, pyv, metav,
+                                      exp_keys):
+    """Test OK cases of resolve_all_dependencies."""
+    mock_client = MockClient1(spec=RAD_C1, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+    assert len(ret) == len(exp_keys)
+    for name, ver in exp_keys:
+        key = PkgKey(name=name, version=ver)
+        assert key in ret
+        assert ret[key]['key'] == key
+
+
+RAD_M4 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=[])
+]
+
+RAD_C2 = [
+    MockSpecPage(name='simple-pkg', base='elt', metas=RAD_M4)
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,exp_keys',
+                         [('simple-pkg', '3.13', None,
+                           [('simple-pkg', '1.0')]),
+                          ('simple-pkg', '3.10', '2.1',
+                           [('simple-pkg', '1.0')])])
+def test_resolve_all_dependencies_ok2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                      monkeypatch, root, pyv, metav,
+                                      exp_keys):
+    """Test OK cases with package with no dependencies."""
+    mock_client = MockClient1(spec=RAD_C2, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+    assert len(ret) == len(exp_keys)
+    for name, ver in exp_keys:
+        key = PkgKey(name=name, version=ver)
+        assert key in ret
+
+
+RAD_M5 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=['dep1', 'dep2 >= 1.5'])
+]
+
+RAD_M6 = [
+    MockSpecMeta(meta=True, version='2.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=['dep2 >= 2.0', 'dep3'])
+]
+
+RAD_M7 = [
+    MockSpecMeta(meta=True, version='2.5', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=[])
+]
+
+RAD_M8 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=[])
+]
+
+RAD_C3 = [
+    MockSpecPage(name='root', base='elt', metas=RAD_M5),
+    MockSpecPage(name='dep1', base='jai', metas=RAD_M6),
+    MockSpecPage(name='dep2', base='pyt', metas=RAD_M7),
+    MockSpecPage(name='dep3', base='elt', metas=RAD_M8)
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,exp_keys',
+                         [('root', '3.13', None,
+                           [('root', '1.0'), ('dep1', '2.0'),
+                            ('dep2', '2.5'), ('dep3', '1.0')])])
+def test_resolve_all_dependencies_ok3(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                      monkeypatch, root, pyv, metav,
+                                      exp_keys):
+    """Test OK cases with shared dependencies."""
+    mock_client = MockClient1(spec=RAD_C3, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+    assert len(ret) == len(exp_keys)
+    for name, ver in exp_keys:
+        key = PkgKey(name=name, version=ver)
+        assert key in ret
+        assert ret[key]['key'].name == name
+        assert ret[key]['key'].version == Version(ver)
+
+
+RAD_C4 = [
+    MockSpecPage(name='nonexistent', base='elt', metas=[])
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,errmsg',
+                         [('nonexistent', '3.13', None,
+                           'No matching package found for nonexistent')])
+def test_resolve_all_dependencies_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                       monkeypatch, root, pyv, metav,
+                                       errmsg):
+    """Test not OK cases with nonexistent package."""
+    mock_client = MockClient1(spec=RAD_C4, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert errmsg in err
+    assert len(ret) == 0
+
+
+RAD_M9 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=['missing-dep'])
+]
+
+RAD_C5 = [
+    MockSpecPage(name='has-missing-dep', base='elt', metas=RAD_M9)
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,exp_keys,errmsg',
+                         [('has-missing-dep', '3.13', None,
+                           [('has-missing-dep', '1.0')],
+                           'No matching package found for missing-dep')])
+def test_resolve_all_dependencies_nok2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                       monkeypatch, root, pyv, metav,
+                                       exp_keys, errmsg):
+    """Test not OK cases with package that has missing dependency."""
+    mock_client = MockClient1(spec=RAD_C5, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert errmsg in err
+    assert len(ret) == len(exp_keys)
+    for name, ver in exp_keys:
+        key = PkgKey(name=name, version=ver)
+        assert key in ret
+
+
+RAD_M10 = [
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.12', reqs=[])
+]
+
+RAD_C6 = [
+    MockSpecPage(name='new-python-only', base='elt', metas=RAD_M10)
+]
+
+
+@pytest.mark.parametrize('root,pyv,metav,errmsg',
+                         [('new-python-only', '3.10', None,
+                           'No matching package found for new-python-only')])
+def test_resolve_all_dependencies_nok3(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                       monkeypatch, root, pyv, metav,
+                                       errmsg):
+    """Test not OK cases with incompatible Python version."""
+    mock_client = MockClient1(spec=RAD_C6, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package=root,
+                                   python_version=pyv,
+                                   max_metadata_version=metav)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert errmsg in err
+    assert len(ret) == 0
