@@ -35,7 +35,7 @@ pip install --upgrade pypkg-recdep
 | Version | Date        | Python version  | Description                         |
 |---------|-------------|-----------------|-------------------------------------|
 | 0.1     | 15 Aug 2025 | 3.12 or newer   | First released version              |
-| 0.2     | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
+| 0.2.1   | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
 
 ## How to use it
 
@@ -191,4 +191,4 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 * Test result: 205 passed in 3s
 * No Flake8 warnings.
 * No mypy errors found.
-* 0.2 built and tested using python version: Python 3.14.0
+* 0.2.1 built and tested using python version: Python 3.14.0

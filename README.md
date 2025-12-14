@@ -74,4 +74,4 @@ After running doBuild.zsh you can do manual test of the built and installed appl
 * Test result: 205 passed in 3s
 * No Flake8 warnings.
 * No mypy errors found.
-* 0.2 built and tested using python version: Python 3.14.0
+* 0.2.1 built and tested using python version: Python 3.14.0
