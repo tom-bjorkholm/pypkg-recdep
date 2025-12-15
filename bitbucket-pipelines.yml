@@ -16,7 +16,7 @@ pipelines:
             - export IMAGE_NAME="tombjorkholm/py-ci-image"
             - export IMAGE_TAG="${BITBUCKET_COMMIT:0:7}"
             - echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin
-            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" .
+            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" ci_docker --push
             - docker push "$IMAGE_NAME:$IMAGE_TAG"
             - docker push "$IMAGE_NAME:latest"
 
