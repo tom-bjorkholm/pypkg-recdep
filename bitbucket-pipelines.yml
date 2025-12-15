@@ -1,0 +1,41 @@
+image: docker:24.0.5
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Build & push Docker image when Dockerfile changes
+          services:
+            - docker
+          condition:
+            changesets:
+              includePaths:
+                - "ci_docker/*.sh"
+                - "ci_docker/Dockerfile"
+          script:
+            - export IMAGE_NAME="tombjorkholm/py-ci-image"
+            - export IMAGE_TAG="${BITBUCKET_COMMIT:0:7}"
+            - echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin
+            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" .
+            - docker push "$IMAGE_NAME:$IMAGE_TAG"
+            - docker push "$IMAGE_NAME:latest"
+
+      - step:
+          name: Build application when non-Dockerfile files change
+          image: "tombjorkholm/py-ci-image:latest"
+          condition:
+            changesets:
+              includePaths:
+                - "**"
+              excludePaths:
+                - "Dockerfile"
+          script:
+            # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
+            # - ls
+            #- chmod +x ./doBuild.sh
+            #- ./doBuild.sh
+
+definitions:
+  services:
+    docker:
+      memory: 3072
