@@ -2,7 +2,7 @@ image: docker:24.0.5
 
 pipelines:
   branches:
-    main:
+    master:
       - step:
           name: Build & push Docker image when Dockerfile changes
           services:
@@ -27,10 +27,9 @@ pipelines:
             changesets:
               includePaths:
                 - "**"
-
           script:
             # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
-            # - ls
+            - ls
             #- chmod +x ./doBuild.sh
             #- ./doBuild.sh
 
