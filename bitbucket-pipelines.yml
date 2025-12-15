@@ -17,7 +17,7 @@ pipelines:
             - export IMAGE_TAG="${BITBUCKET_COMMIT:0:7}"
             - export DOCKER_BUILDKIT=0
             - echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin
-            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" ci_docker --push
+            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" ci_docker
             - docker push "$IMAGE_NAME:$IMAGE_TAG"
             - docker push "$IMAGE_NAME:latest"
 
