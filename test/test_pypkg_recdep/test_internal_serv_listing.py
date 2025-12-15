@@ -10,9 +10,8 @@ import re
 # import pytest
 from packaging.version import Version
 from pypi_simple import IndexPage, ProjectPage
-from get_example_pypi_list_data import load_example_pypi_list_data, \
-    MockListData
-from pypkg_recdep.pkg_info import PkgKey
+from pypkg_recdep.pkg_info import PkgKey, MockListData
+from get_example_pypi_list_data import load_example_pypi_list_data
 # from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth
 
 
@@ -74,3 +73,64 @@ class MockListClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit context manager."""
+
+
+# Test that load_example_pypi_list_data() works as expected.
+
+
+def test_load_example_pypi_list_data() -> None:
+    """Test that load_example_pypi_list_data() works as expected."""
+    example: MockListData = load_example_pypi_list_data()
+    assert isinstance(example, MockListData)
+    assert len(example.idx_page.projects) >= 20
+    assert len(example.project_pages) >= 20
+    assert len(example.metas) >= 20
+    expected_pkg_num = {
+        'excel-list-transform': 1,
+        'jaraco.itertools': 1,
+        'mypy': 1,
+        'pip': 1,
+        'py-tes-estebanfs': 1,
+        'pytesimal': 1,
+        'pytesira': 1,
+        'pyteslaapi': 1,
+        'pyteslable': 1,
+        'pytesmo': 1,
+        'pytes-mock': 1,
+        'Pytess': 1,
+        'pytessel': 1,
+        'PyTesser': 1,
+        'pytesser3': 1,
+        'pytesseract': 1,
+        'py-tesseract': 1,
+        'pytesseract-api': 1,
+        'pytesseract-cli': 1,
+        'pytesseraxcocr': 1,
+        'pytessert': 1,
+        'pytessng': 1,
+        'pytesstrain': 1,
+        'pytessy': 1,
+        'pytest': 1,
+    }
+    assert len(example.project_pages) == len(expected_pkg_num.keys())
+    for project in expected_pkg_num.keys():
+        assert project in example.project_pages
+        assert len(example.project_pages[project].packages) == \
+            expected_pkg_num[project]
+        for pkg in example.project_pages[project].packages:
+            assert pkg.project == project
+            if pkg.has_metadata:
+                pkgkey = PkgKey(pkg.project, pkg.version)
+                assert pkgkey in example.metas
+                assert example.metas[pkgkey] is not None
+
+
+# Section with some tests of the MockListClient class.
+# The reason for this is that when we use the MockListClient class to test
+# the internal_server_listing module, we should not have to worry about
+# the MockListClient class behaving in unexpected ways.
+
+
+
+
+# Section with tests of the internal_server_listing module.

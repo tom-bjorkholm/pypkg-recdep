@@ -4,23 +4,14 @@
 # MIT License
 
 import sys
-from typing import NamedTuple
 from copy import deepcopy
 import pickle
 from pypi_simple import PyPISimple, IndexPage, \
     ProjectPage
-from pypkg_recdep.pkg_info import PkgKey
+from pypkg_recdep.pkg_info import PkgKey, MockListData
 
 
 _FNAME = 'test/test_pypkg_recdep/list_data.pkl'
-
-
-class MockListData(NamedTuple):
-    """Mock list data."""
-
-    idx_page: IndexPage
-    project_pages: dict[str, ProjectPage]
-    metas: dict[PkgKey, str]
 
 
 def get_idxpage(client: PyPISimple) -> IndexPage:

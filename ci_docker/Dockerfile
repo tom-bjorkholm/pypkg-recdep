@@ -1,5 +1,8 @@
 FROM registry.gitlab.com/python-devs/ci-images:active
-LABEL python.ci-image.authors="Tom Björkholm <klausuler_linnet0q@icloud.com>"
+LABEL tombjorkholm.py-ci-image.authors="Tom Björkholm <klausuler_linnet0q@icloud.com>"
+
+USER root
+WORKDIR /
 
 ARG SERIES
 ENV SERIES=${SERIES}
@@ -10,6 +13,9 @@ ENV PATH="/usr/local/bin:$PATH"
 # Set Debian front-end to non-interactive so that apt doesn't ask for
 # prompts later.
 ENV  DEBIAN_FRONTEND=noninteractive
+
+RUN mkdir -p /var/lib/apt/lists/partial && chmod 700 /var/lib/apt/lists/partial
+RUN mkdir -p /var/cache/apt/archives/partial && chmod 700 /var/cache/apt/archives/partial
 
 RUN apt-get update && apt-get install -y \
     build-essential \

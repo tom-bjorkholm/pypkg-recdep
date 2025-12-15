@@ -4,12 +4,12 @@
 # Copyright (c) 2025 Tom Björkholm
 # MIT License
 
-from typing import TypedDict, Optional, Final
+from typing import TypedDict, Optional, Final, NamedTuple
 from functools import total_ordering
 from packaging.version import Version
 from packaging.utils import NormalizedName, canonicalize_name
 from packaging.requirements import Requirement
-
+from pypi_simple import IndexPage, ProjectPage
 
 @total_ordering
 class PkgKey:
@@ -74,3 +74,11 @@ def create_pkginfo(key: PkgKey) -> PkgInfo:
 
 
 type Pkgs = dict[PkgKey, PkgInfo]
+
+
+class MockListData(NamedTuple):
+    """Mock list data."""
+
+    idx_page: IndexPage
+    project_pages: dict[str, ProjectPage]
+    metas: dict[PkgKey, str]
