@@ -27,8 +27,7 @@ pipelines:
             changesets:
               includePaths:
                 - "**"
-              excludePaths:
-                - "Dockerfile"
+
           script:
             # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
             # - ls
