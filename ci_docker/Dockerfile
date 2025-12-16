@@ -29,6 +29,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget 
 
+RUN apt-get install -y grep coreutils sed gawk findutils
+RUN apt-get install -y make tar bzip2 gzip zip
+
 COPY pip_installs.zsh /tmp/pip_installs.zsh
 RUN chmod +x /tmp/pip_installs.zsh
 RUN zsh /tmp/pip_installs.zsh

@@ -17,23 +17,26 @@ pipelines:
             - export IMAGE_TAG="${BITBUCKET_COMMIT:0:7}"
             - export DOCKER_BUILDKIT=0
             - echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin
+            - docker pull "$IMAGE_NAME:$IMAGE_TAG"
             - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" ci_docker
             - docker push "$IMAGE_NAME:$IMAGE_TAG"
             - docker push "$IMAGE_NAME:latest"
 
-#      - step:
-#          name: Build application when non-Dockerfile files change
-#          image: "tombjorkholm/py-ci-image:latest"
-#          condition:
-#            changesets:
-#              includePaths:
-#                - "**"
-#          script:
-#            # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
-#            - ls
-#            #- chmod +x ./doBuild.zsh
-#            #- zsh ./doBuild.zsh
-
+      - step:
+          name: Build application when non-Dockerfile files change
+          image: "tombjorkholm/py-ci-image:latest"
+          condition:
+            changesets:
+              includePaths:
+                - "**"
+          script:
+            # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
+            - ls
+            - chmod +x ./doBuild.zsh
+            - zsh ./doBuild.zsh
+          artifacts:
+            - dist/**
+            - reports/**
 definitions:
   services:
     docker:
