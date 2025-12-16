@@ -7,12 +7,14 @@
 from copy import deepcopy
 from typing import Optional
 import re
-# import pytest
+from tempfile import TemporaryDirectory
+import pytest
 from packaging.version import Version
 from pypi_simple import IndexPage, ProjectPage
 from get_example_pypi_list_data import load_example_pypi_list_data
 from pypkg_recdep.pkg_info import PkgKey, MockListData
-# from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth
+from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
+    read_token_from_file, get_auth
 
 
 class MockListClient:
@@ -133,3 +135,73 @@ def test_load_example_pypi_list_data() -> None:
 
 
 # Section with tests of the internal_server_listing module.
+
+
+@pytest.mark.parametrize('token_content,expected',
+                         [('mytoken123', 'mytoken123'),
+                          ('  mytoken123  ', 'mytoken123'),
+                          ('mytoken123\n', 'mytoken123'),
+                          ('  mytoken123\n  ', 'mytoken123'),
+                          ('token_with_underscores', 'token_with_underscores'),
+                          ('token-with-dashes', 'token-with-dashes'),
+                          ('token.with.dots', 'token.with.dots'),
+                          ('', '')])
+def test_read_token_from_file_ok1(capsys, token_content, expected):
+    """Test OK cases of read_token_from_file."""
+    with TemporaryDirectory() as dirname:
+        token_file = dirname + '/token.txt'
+        with open(token_file, 'w', encoding='utf-8') as file:
+            file.write(deepcopy(token_content))
+        ret = read_token_from_file(token_file=token_file)
+        assert ret == expected
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('token_file',
+                         ['/nonexistent/file/path/token.txt',
+                          '/tmp/also/does/not/exist/token.txt'])
+def test_read_token_from_file_nok1(capsys, token_file):
+    """Test not OK cases of read_token_from_file with file not found."""
+    with pytest.raises(FileNotFoundError):
+        _ = read_token_from_file(token_file=deepcopy(token_file))
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('pat_file,token_content,expected_type',
+                         [('token.txt', 'mytoken123', TokenAuth),
+                          ('token.txt', '  mytoken123  ', TokenAuth),
+                          ('token.txt', 'another-token', TokenAuth),
+                          ('', None, NoAuth)])
+def test_get_auth_ok1(capsys, pat_file, token_content, expected_type):
+    """Test OK cases of get_auth."""
+    with TemporaryDirectory() as dirname:
+        if pat_file and token_content is not None:
+            token_file = dirname + '/' + deepcopy(pat_file)
+            with open(token_file, 'w', encoding='utf-8') as file:
+                file.write(deepcopy(token_content))
+            ret = get_auth(pat_file=token_file)
+        else:
+            ret = get_auth(pat_file=deepcopy(pat_file))
+        assert isinstance(ret, expected_type)
+        if isinstance(ret, TokenAuth):
+            expected_token = deepcopy(token_content).strip()
+            assert ret.token == expected_token
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('pat_file',
+                         ['/nonexistent/file/path/token.txt',
+                          '/tmp/also/does/not/exist/token.txt'])
+def test_get_auth_nok1(capsys, pat_file):
+    """Test not OK cases of get_auth with file not found."""
+    with pytest.raises(FileNotFoundError):
+        _ = get_auth(pat_file=deepcopy(pat_file))
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
