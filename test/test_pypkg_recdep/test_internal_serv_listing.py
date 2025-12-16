@@ -7,6 +7,7 @@
 from copy import deepcopy
 from typing import Optional
 import re
+import csv
 from tempfile import TemporaryDirectory
 import pytest
 from packaging.version import Version
@@ -17,7 +18,8 @@ import requests
 from get_example_pypi_list_data import load_example_pypi_list_data
 from pypkg_recdep.pkg_info import PkgKey, MockListData
 from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
-    read_token_from_file, get_auth, get_meta, store_pkg
+    read_token_from_file, get_auth, get_meta, store_pkg, \
+    list_for_projects, list_in_internal_server
 
 
 class MockListClient:
@@ -30,7 +32,8 @@ class MockListClient:
     the same data.
     """
 
-    def __init__(self,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(self,
                  project_pattern: Optional[str] = None,
                  max_num_versions: Optional[int] = None,
                  endpoint: Optional[str] = None,
@@ -266,6 +269,95 @@ def test_mock_list_client_context_manager(capsys):
     assert '' == err
 
 
+@pytest.mark.parametrize('endpoint',
+                         ['http://test.com/simple', 'https://pypi.org/simple',
+                          'http://localhost:8080/simple'])
+def test_mock_list_client_endpoint(capsys, endpoint):
+    """Test MockListClient with endpoint parameter."""
+    client = MockListClient(endpoint=deepcopy(endpoint))
+    assert client.mock_data is not None
+    idx_page = client.get_index_page(timeout=30.0)
+    assert idx_page is not None
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('auth',
+                         [None, NoAuth(), TokenAuth('test-token')])
+def test_mock_list_client_auth(capsys, auth):
+    """Test MockListClient with auth parameter."""
+    client = MockListClient(auth=auth)
+    assert client.mock_data is not None
+    idx_page = client.get_index_page(timeout=30.0)
+    assert idx_page is not None
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+def test_mock_list_client_data(capsys):
+    """Test MockListClient with custom data parameter."""
+    custom_data = load_example_pypi_list_data()
+    client = MockListClient(data=custom_data)
+    assert client.mock_data is custom_data
+    idx_page = client.get_index_page(timeout=30.0)
+    assert idx_page is not None
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('exception',
+                         [requests.HTTPError('test'),
+                          ValueError('test error'),
+                          RuntimeError('runtime error')])
+def test_mock_list_client_index_exception(capsys, exception):
+    """Test MockListClient with index_exception."""
+    client = MockListClient(index_exception=exception)
+    with pytest.raises(type(exception)):
+        _ = client.get_index_page(timeout=30.0)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('exception',
+                         [requests.HTTPError('test'),
+                          ValueError('test error'),
+                          KeyError('test')])
+def test_mock_list_client_project_exception(capsys, exception):
+    """Test MockListClient with project_exception."""
+    client = MockListClient(project_exception=exception)
+    with pytest.raises(type(exception)):
+        _ = client.get_project_page(project='pytest', timeout=30.0)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('exception',
+                         [NoMetadataError(filename='test.whl',
+                                          url='http://test.com'),
+                          NoDigestsError(url='http://test.com'),
+                          requests.HTTPError('test')])
+def test_mock_list_client_package_meta_exception(capsys, exception):
+    """Test MockListClient with package_meta_exception."""
+    client = MockListClient(package_meta_exception=exception)
+    page = client.get_project_page(project='pytest', timeout=30.0)
+    pkg = None
+    for p in page.packages:
+        if p.has_metadata:
+            pkg = p
+            break
+    if pkg is not None:
+        with pytest.raises(type(exception)):
+            _ = client.get_package_metadata(pkg=pkg, timeout=30.0)
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
 # Section with tests of the internal_server_listing module.
 
 
@@ -355,101 +447,37 @@ def test_get_meta_no_metadata_version(capsys, metadata, expected):
     assert '' == err
 
 
-def test_get_meta_exception_no_metadata(capsys):
-    """Test get_meta with NoMetadataError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = NoMetadataError(filename='test.whl', url='http://test.com')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
-
-
-def test_get_meta_exception_no_digests(capsys):
-    """Test get_meta with NoDigestsError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = NoDigestsError(url='http://test.com')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
-
-
-def test_get_meta_exception_digest_mismatch(capsys):
-    """Test get_meta with DigestMismatchError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = DigestMismatchError(algorithm='sha256', expected_digest='abc',
-                              actual_digest='def', url='http://test.com')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
-
-
-def test_get_meta_exception_http_error(capsys):
-    """Test get_meta with HTTPError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = requests.HTTPError('test error')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
-
-
-def test_get_meta_exception_key_error(capsys):
-    """Test get_meta with KeyError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = KeyError('test')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
-
-
-def test_get_meta_exception_value_error(capsys):
-    """Test get_meta with ValueError."""
-    pkg = DistributionPackage(filename='test.whl', url='http://test.com',
-                              project='pytest', version='9.0.0',
-                              requires_python=None, package_type='whl',
-                              digests={}, has_sig=False)
-    pkg.has_metadata = True
-    exc = ValueError('test')
-    mock_client = MockMetaClient(exception=exc)
-    ret = get_meta(client=mock_client, pkg=pkg)
-    assert ret == 'unknown'
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert 'Failed to get metadata version for pytest' in err
+@pytest.mark.parametrize('exception,err_msg',
+                         [(NoMetadataError(filename='test.whl',
+                                           url='http://test.com'),
+                           'Failed to get metadata version for pytest'),
+                          (NoDigestsError(url='http://test.com'),
+                           'Failed to get metadata version for pytest'),
+                          (DigestMismatchError(
+                              algorithm='sha256', expected_digest='abc',
+                              actual_digest='def', url='http://test.com'),
+                           'Failed to get metadata version for pytest'),
+                          (requests.HTTPError('test error'),
+                           'Failed to get metadata version for pytest'),
+                          (KeyError('test'),
+                           'Failed to get metadata version for pytest'),
+                          (ValueError('test'),
+                           'Failed to get metadata version for pytest')])
+def test_get_meta_exceptions(capsys, exception, err_msg):
+    """Test get_meta with various exceptions using MockListClient."""
+    client = MockListClient(package_meta_exception=exception)
+    page = client.get_project_page(project='pytest', timeout=30.0)
+    pkg = None
+    for p in page.packages:
+        if p.has_metadata:
+            pkg = p
+            break
+    if pkg is not None:
+        ret = get_meta(client=client, pkg=pkg)
+        assert ret == 'unknown'
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert err_msg in err
 
 
 @pytest.mark.parametrize('name,ver,meta,ptype,expected_dict',
@@ -612,6 +640,156 @@ def test_get_auth_nok1(capsys, pat_file):
     """Test not OK cases of get_auth with file not found."""
     with pytest.raises(FileNotFoundError):
         _ = get_auth(pat_file=deepcopy(pat_file))
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('projects',
+                         [['pytest'],
+                          ['excel-list-transform'],
+                          ['pytest', 'excel-list-transform']])
+def test_list_for_projects_ok1(capsys, projects):
+    """Test OK cases of list_for_projects."""
+    client = MockListClient()
+    with TemporaryDirectory() as dirname:
+        output_file = dirname + '/output.csv'
+        list_for_projects(client=client, projects=deepcopy(projects),
+                          output_file=output_file)
+        with open(output_file, 'r', encoding='utf-8',
+                  newline='') as file:
+            reader = csv.reader(file, dialect='unix')
+            rows = list(reader)
+        assert len(rows) > 0
+        assert rows[0] == ['Name', 'Version', 'Metadata Version',
+                           'Formats']
+        # Check that all projects are represented
+        project_names = {row[0] for row in rows[1:]}
+        for proj in projects:
+            assert proj in project_names or \
+                proj.replace('-', '_') in project_names
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('project,min_versions',
+                         [('pytest', 100),
+                          ('excel-list-transform', 10)])
+def test_list_for_projects_content(capsys, project, min_versions):
+    """Test content of list_for_projects output."""
+    client = MockListClient()
+    with TemporaryDirectory() as dirname:
+        output_file = dirname + '/output.csv'
+        list_for_projects(client=client,
+                          projects=[deepcopy(project)],
+                          output_file=output_file)
+        with open(output_file, 'r', encoding='utf-8',
+                  newline='') as file:
+            reader = csv.reader(file, dialect='unix')
+            rows = list(reader)
+        assert len(rows) > min_versions
+        # Check header
+        assert rows[0] == ['Name', 'Version', 'Metadata Version',
+                           'Formats']
+        # Check data rows have 4 columns
+        for row in rows[1:]:
+            assert len(row) == 4
+            assert row[0] is not None
+            assert row[1] is not None
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('server_url,pat_file,limit',
+                         [('http://test.com', '', None),
+                          ('http://test.com', '', 5),
+                          ('http://test.com/', '', 10)])
+def test_list_in_internal_server_ok1(capsys, monkeypatch, server_url,
+                                      pat_file, limit):
+    """Test OK cases of list_in_internal_server."""
+    client = MockListClient()
+
+    class MockPyPISimple:
+        """Mock PyPISimple class."""
+
+        def __init__(self, endpoint, auth):
+            """Initialize mock PyPISimple."""
+            assert endpoint is not None
+            assert auth is not None
+            self.client = client
+
+        def __enter__(self):
+            """Enter context manager."""
+            return self.client
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            """Exit context manager."""
+            return None
+
+    monkeypatch.setattr(
+        'pypkg_recdep.internal_server_listing.PyPISimple',
+        MockPyPISimple)
+    with TemporaryDirectory() as dirname:
+        output_file = dirname + '/output.csv'
+        list_in_internal_server(
+            server_url=deepcopy(server_url), pat_file=deepcopy(pat_file),
+            output_file=output_file, limit=limit)
+        with open(output_file, 'r', encoding='utf-8',
+                  newline='') as file:
+            reader = csv.reader(file, dialect='unix')
+            rows = list(reader)
+        assert len(rows) > 0
+        assert rows[0] == ['Name', 'Version', 'Metadata Version',
+                           'Formats']
+        if limit:
+            # Limit applies to projects processed, not unique names
+            # Just verify we have some output
+            assert len(rows) > 1
+    out, err = capsys.readouterr()
+    if limit:
+        assert f'limiting output to {limit} packages' in err
+    assert '' == out
+
+
+@pytest.mark.parametrize('server_url',
+                         ['http://test.com', 'http://test.com/',
+                          'https://example.org/pypi'])
+def test_list_in_internal_server_urls(capsys, monkeypatch, server_url):
+    """Test list_in_internal_server with different URL formats."""
+    client = MockListClient()
+
+    class MockPyPISimple:
+        """Mock PyPISimple class."""
+
+        def __init__(self, endpoint, auth):
+            """Initialize mock PyPISimple."""
+            assert endpoint.endswith('/simple')
+            assert auth is not None
+            self.client = client
+
+        def __enter__(self):
+            """Enter context manager."""
+            return self.client
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            """Exit context manager."""
+            return None
+
+    monkeypatch.setattr(
+        'pypkg_recdep.internal_server_listing.PyPISimple',
+        MockPyPISimple)
+    with TemporaryDirectory() as dirname:
+        output_file = dirname + '/output.csv'
+        list_in_internal_server(
+            server_url=deepcopy(server_url), pat_file='',
+            output_file=output_file, limit=None)
+        with open(output_file, 'r', encoding='utf-8',
+                  newline='') as file:
+            reader = csv.reader(file, dialect='unix')
+            rows = list(reader)
+        assert len(rows) > 0
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
