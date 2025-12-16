@@ -22,7 +22,7 @@ from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
     list_for_projects, list_in_internal_server
 
 
-class MockListClient:
+class MockListClient:  # pylint: disable=too-many-instance-attributes
     """Mock PyPISimple client for listing content in internal PyPI.
 
     The example data is given as an argument or loaded from a pickle
@@ -67,6 +67,8 @@ class MockListClient:
             assert isinstance(endpoint, str)
         if auth is not None:
             assert isinstance(auth, AuthBase)
+        self.endpoint = endpoint
+        self.auth = auth
         self.index_exception = index_exception
         self.project_exception = project_exception
         self.package_meta_exception = package_meta_exception
@@ -118,6 +120,65 @@ class MockListClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit context manager."""
+
+
+def create_test_list_data(
+        project_name: str,
+        packages: list[tuple[str, str, str, str]]) -> MockListData:
+    """Create test MockListData with known packages.
+
+    @param project_name  Name of the project.
+    @param packages      List of (version, metadata_version, package_type,
+                        has_metadata) tuples.
+    @return             MockListData with the specified packages.
+    """
+    idx_page = IndexPage(projects=[project_name], repository_version='1.4',
+                         last_serial='12345')
+    pkg_list: list[DistributionPackage] = []
+    metas: dict[PkgKey, str] = {}
+    for ver, meta_ver, ptype, has_meta in packages:
+        pkg = DistributionPackage(
+            filename=f'{project_name}-{ver}-py3-none-any.{ptype}',
+            url=f'http://test.com/{project_name}-{ver}.{ptype}',
+            project=project_name, version=ver, requires_python=None,
+            package_type=ptype, digests={}, has_sig=False)
+        pkg.has_metadata = has_meta == 'True'
+        pkg_list.append(pkg)
+        if has_meta == 'True':
+            meta_text = f'Metadata-Version: {meta_ver}\n'
+            meta_text += f'Name: {project_name}\n'
+            meta_text += f'Version: {ver}\n'
+            metas[PkgKey(project_name, ver)] = meta_text
+    project_page = ProjectPage(project=project_name, packages=pkg_list,
+                               repository_version='1.4',
+                               last_serial='12345')
+    project_pages: dict[str, ProjectPage] = {project_name: project_page}
+    return MockListData(idx_page=idx_page, project_pages=project_pages,
+                        metas=metas)
+
+
+class MockPyPISimpleFactory:  # pylint: disable=too-few-public-methods
+    """Factory class to create MockListClient instances for PyPISimple."""
+
+    def __init__(self, client_data: Optional[MockListData] = None):
+        """Create a MockPyPISimpleFactory.
+
+        @param client_data  Optional data to use for all created clients.
+        """
+        self.client_data = client_data
+        self.created_clients: list[MockListClient] = []
+
+    def __call__(self, endpoint: str, auth: Optional[AuthBase] = None):
+        """Create a MockListClient instance.
+
+        @param endpoint  The endpoint URL.
+        @param auth     The authentication object.
+        @return         A MockListClient instance.
+        """
+        client = MockListClient(endpoint=endpoint, auth=auth,
+                                data=self.client_data)
+        self.created_clients.append(client)
+        return client
 
 
 # Test that load_example_pypi_list_data() works as expected.
@@ -673,69 +734,77 @@ def test_list_for_projects_ok1(capsys, projects):
     assert '' == err
 
 
-@pytest.mark.parametrize('project,min_versions',
-                         [('pytest', 100),
-                          ('excel-list-transform', 10)])
-def test_list_for_projects_content(capsys, project, min_versions):
-    """Test content of list_for_projects output."""
-    client = MockListClient()
+@pytest.mark.parametrize('project_name,packages,expected_rows',
+                         [('testpkg',
+                           [('1.0.0', '2.1', 'whl', 'True'),
+                            ('2.0.0', '2.4', 'sdist', 'True'),
+                            ('3.0.0', '2.1', 'whl', 'False')],
+                           [('testpkg', '1.0.0', '2.1', 'whl'),
+                            ('testpkg', '2.0.0', '2.4', 'sdist'),
+                            ('testpkg', '3.0.0', 'unknown', 'whl')]),
+                          ('mypkg',
+                           [('0.1.0', '2.1', 'whl', 'True'),
+                            ('0.2.0', '2.1', 'sdist', 'True')],
+                           [('mypkg', '0.1.0', '2.1', 'whl'),
+                            ('mypkg', '0.2.0', '2.1', 'sdist')])])
+# pylint: disable=too-many-locals
+def test_list_for_projects_content(
+        capsys, project_name, packages, expected_rows):
+    """Test content of list_for_projects output with known data."""
+    test_data = create_test_list_data(
+        project_name=deepcopy(project_name),
+        packages=deepcopy(packages))
+    client = MockListClient(data=test_data)
     with TemporaryDirectory() as dirname:
         output_file = dirname + '/output.csv'
         list_for_projects(client=client,
-                          projects=[deepcopy(project)],
+                          projects=[deepcopy(project_name)],
                           output_file=output_file)
         with open(output_file, 'r', encoding='utf-8',
                   newline='') as file:
             reader = csv.reader(file, dialect='unix')
             rows = list(reader)
-        assert len(rows) > min_versions
-        # Check header
         assert rows[0] == ['Name', 'Version', 'Metadata Version',
                            'Formats']
-        # Check data rows have 4 columns
-        for row in rows[1:]:
-            assert len(row) == 4
-            assert row[0] is not None
-            assert row[1] is not None
+        assert len(rows) == len(expected_rows) + 1
+        for i, expected in enumerate(expected_rows):
+            actual = rows[i + 1]
+            assert actual[0] == expected[0]
+            assert actual[1] == expected[1]
+            assert actual[2] == expected[2]
+            assert actual[3] == expected[3]
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
 
 
-@pytest.mark.parametrize('server_url,pat_file,limit',
-                         [('http://test.com', '', None),
-                          ('http://test.com', '', 5),
-                          ('http://test.com/', '', 10)])
-def test_list_in_internal_server_ok1(capsys, monkeypatch, server_url,
-                                      pat_file, limit):
+@pytest.mark.parametrize('server_url,pat_file,limit,expected_endpoint',
+                         [('http://test.com', '', None,
+                           'http://test.com/simple'),
+                          ('http://test.com', '', 5,
+                           'http://test.com/simple'),
+                          ('http://test.com/', '', 10,
+                           'http://test.com/simple')])
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_list_in_internal_server_ok1(
+        capsys, monkeypatch, server_url, pat_file, limit,
+        expected_endpoint):
     """Test OK cases of list_in_internal_server."""
-    client = MockListClient()
-
-    class MockPyPISimple:
-        """Mock PyPISimple class."""
-
-        def __init__(self, endpoint, auth):
-            """Initialize mock PyPISimple."""
-            assert endpoint is not None
-            assert auth is not None
-            self.client = client
-
-        def __enter__(self):
-            """Enter context manager."""
-            return self.client
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            """Exit context manager."""
-            return None
-
+    factory = MockPyPISimpleFactory()
     monkeypatch.setattr(
-        'pypkg_recdep.internal_server_listing.PyPISimple',
-        MockPyPISimple)
+        'pypkg_recdep.internal_server_listing.PyPISimple', factory)
     with TemporaryDirectory() as dirname:
         output_file = dirname + '/output.csv'
         list_in_internal_server(
             server_url=deepcopy(server_url), pat_file=deepcopy(pat_file),
             output_file=output_file, limit=limit)
+        assert len(factory.created_clients) == 1
+        client = factory.created_clients[0]
+        assert client.endpoint == expected_endpoint
+        if pat_file:
+            assert isinstance(client.auth, TokenAuth)
+        else:
+            assert isinstance(client.auth, NoAuth)
         with open(output_file, 'r', encoding='utf-8',
                   newline='') as file:
             reader = csv.reader(file, dialect='unix')
@@ -753,38 +822,26 @@ def test_list_in_internal_server_ok1(capsys, monkeypatch, server_url,
     assert '' == out
 
 
-@pytest.mark.parametrize('server_url',
-                         ['http://test.com', 'http://test.com/',
-                          'https://example.org/pypi'])
-def test_list_in_internal_server_urls(capsys, monkeypatch, server_url):
+@pytest.mark.parametrize('server_url,expected_endpoint',
+                         [('http://test.com', 'http://test.com/simple'),
+                          ('http://test.com/', 'http://test.com/simple'),
+                          ('https://example.org/pypi',
+                           'https://example.org/pypi/simple')])
+def test_list_in_internal_server_urls(
+        capsys, monkeypatch, server_url, expected_endpoint):
     """Test list_in_internal_server with different URL formats."""
-    client = MockListClient()
-
-    class MockPyPISimple:
-        """Mock PyPISimple class."""
-
-        def __init__(self, endpoint, auth):
-            """Initialize mock PyPISimple."""
-            assert endpoint.endswith('/simple')
-            assert auth is not None
-            self.client = client
-
-        def __enter__(self):
-            """Enter context manager."""
-            return self.client
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            """Exit context manager."""
-            return None
-
+    factory = MockPyPISimpleFactory()
     monkeypatch.setattr(
-        'pypkg_recdep.internal_server_listing.PyPISimple',
-        MockPyPISimple)
+        'pypkg_recdep.internal_server_listing.PyPISimple', factory)
     with TemporaryDirectory() as dirname:
         output_file = dirname + '/output.csv'
         list_in_internal_server(
             server_url=deepcopy(server_url), pat_file='',
             output_file=output_file, limit=None)
+        assert len(factory.created_clients) == 1
+        client = factory.created_clients[0]
+        assert client.endpoint == expected_endpoint
+        assert isinstance(client.auth, NoAuth)
         with open(output_file, 'r', encoding='utf-8',
                   newline='') as file:
             reader = csv.reader(file, dialect='unix')
