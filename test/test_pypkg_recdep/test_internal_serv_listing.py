@@ -12,6 +12,7 @@ import pytest
 from packaging.version import Version
 from pypi_simple import IndexPage, ProjectPage, DistributionPackage, \
     NoMetadataError, NoDigestsError, DigestMismatchError
+from requests.auth import AuthBase
 import requests
 from get_example_pypi_list_data import load_example_pypi_list_data
 from pypkg_recdep.pkg_info import PkgKey, MockListData
@@ -22,24 +23,52 @@ from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
 class MockListClient:
     """Mock PyPISimple client for listing content in internal PyPI.
 
-    The example data is loaded from a pickle file stored in git,
-    and filtered to suit the test needs. This means that repeated
-    calls with same arguments will return the same data.
-    Several instances created with same arguments will produce the same
-    data.
+    The example data is given as an argument or loaded from a pickle
+    file stored in git, and filtered to suit the test needs.
+    This means that repeated calls with same arguments will return the
+    same data. Several instances created with same arguments will produce
+    the same data.
     """
 
-    def __init__(self,
+    def __init__(self,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                  project_pattern: Optional[str] = None,
-                 max_num_versions: Optional[int] = None):
+                 max_num_versions: Optional[int] = None,
+                 endpoint: Optional[str] = None,
+                 auth: Optional[AuthBase] = None,
+                 data: Optional[MockListData] = None,
+                 index_exception: Optional[Exception] = None,
+                 project_exception: Optional[Exception] = None,
+                 package_meta_exception: Optional[Exception] = None):
         """Create a MockListClient object.
 
         @param project_pattern  A regular expression to filter the projects.
                                 If None, no filtering is applied and all
                                 known projects are available.
         @param max_num_versions The maximum number of versions to return.
+        @param endpoint         The endpoint to use for the PyPISimple client.
+                                Not used in this mock client.
+        @param auth             The authentication to use for the PyPISimple
+                                client. If None, no authentication is used.
+                                Not used in this mock client.
+        @param data             The data to use for the mock client.
+                                If None, the example data is loaded from
+                                pickle file stored in git.
+        @param index_exception  Exception to raise when get_index_page is
+                                called.
+        @param project_exception Exception to raise when get_project_page is
+                                called.
+        @param package_meta_exception Exception to raise when
+                                get_package_metadata is called.
         """
-        self.mock_data: MockListData = load_example_pypi_list_data()
+        if endpoint is not None:
+            assert isinstance(endpoint, str)
+        if auth is not None:
+            assert isinstance(auth, AuthBase)
+        self.index_exception = index_exception
+        self.project_exception = project_exception
+        self.package_meta_exception = package_meta_exception
+        self.mock_data: MockListData = \
+            data if data is not None else load_example_pypi_list_data()
         self.project_pattern = project_pattern
         if self.project_pattern:
             self.mock_data.idx_page.projects = \
@@ -50,12 +79,16 @@ class MockListClient:
     def get_index_page(self, timeout: float = 30.0) -> IndexPage:
         """Get a fake index page."""
         assert timeout is not None
+        if self.index_exception is not None:
+            raise self.index_exception
         return self.mock_data.idx_page
 
     def get_project_page(self, project: str,
                          timeout: float = 30.0) -> ProjectPage:
         """Get a fake project page."""
         assert timeout is not None
+        if self.project_exception is not None:
+            raise self.project_exception
         if self.max_num_versions:
             orig_pkgs = self.mock_data.project_pages[project].packages
             pkgs = deepcopy(orig_pkgs)
@@ -71,6 +104,8 @@ class MockListClient:
         """Get a fake package metadata."""
         assert timeout is not None
         assert pkg is not None
+        if self.package_meta_exception is not None:
+            raise self.package_meta_exception
         key = PkgKey(pkg.project, pkg.version)
         return self.mock_data.metas[key]
 
