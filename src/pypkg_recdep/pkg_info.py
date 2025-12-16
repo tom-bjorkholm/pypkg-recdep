@@ -11,6 +11,7 @@ from packaging.utils import NormalizedName, canonicalize_name
 from packaging.requirements import Requirement
 from pypi_simple import IndexPage, ProjectPage
 
+
 @total_ordering
 class PkgKey:
     """Key to a package with name and version."""

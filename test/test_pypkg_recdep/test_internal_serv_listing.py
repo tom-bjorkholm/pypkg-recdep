@@ -10,8 +10,8 @@ import re
 # import pytest
 from packaging.version import Version
 from pypi_simple import IndexPage, ProjectPage
-from pypkg_recdep.pkg_info import PkgKey, MockListData
 from get_example_pypi_list_data import load_example_pypi_list_data
+from pypkg_recdep.pkg_info import PkgKey, MockListData
 # from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth
 
 
@@ -86,39 +86,40 @@ def test_load_example_pypi_list_data() -> None:
     assert len(example.project_pages) >= 20
     assert len(example.metas) >= 20
     expected_pkg_num = {
-        'excel-list-transform': 1,
-        'jaraco.itertools': 1,
-        'mypy': 1,
-        'pip': 1,
-        'py-tes-estebanfs': 1,
-        'pytesimal': 1,
-        'pytesira': 1,
-        'pyteslaapi': 1,
-        'pyteslable': 1,
-        'pytesmo': 1,
-        'pytes-mock': 1,
-        'Pytess': 1,
-        'pytessel': 1,
-        'PyTesser': 1,
-        'pytesser3': 1,
-        'pytesseract': 1,
-        'py-tesseract': 1,
-        'pytesseract-api': 1,
-        'pytesseract-cli': 1,
-        'pytesseraxcocr': 1,
+        'excel-list-transform': 40,
+        'jaraco.itertools': 75,
+        'mypy': 1784,
+        'pip': 275,
+        'py-tes-estebanfs': 2,
+        'pytesimal': 2,
+        'pytesira': 22,
+        'pyteslaapi': 12,
+        'pyteslable': 6,
+        'pytesmo': 320,
+        'pytes-mock': 0,
+        'Pytess': 2,
+        'pytessel': 315,
+        'PyTesser': 0,
+        'pytesser3': 2,
+        'pytesseract': 32,
+        'py-tesseract': 3,
+        'pytesseract-api': 10,
+        'pytesseract-cli': 2,
+        'pytesseraxcocr': 38,
         'pytessert': 1,
-        'pytessng': 1,
-        'pytesstrain': 1,
-        'pytessy': 1,
-        'pytest': 1,
+        'pytessng': 87,
+        'pytesstrain': 34,
+        'pytessy': 2,
+        'pytest': 347
     }
     assert len(example.project_pages) == len(expected_pkg_num.keys())
-    for project in expected_pkg_num.keys():
+    for project, expected_num in expected_pkg_num.items():
         assert project in example.project_pages
         assert len(example.project_pages[project].packages) == \
-            expected_pkg_num[project]
+            expected_num
         for pkg in example.project_pages[project].packages:
-            assert pkg.project == project
+            assert pkg.project.replace('-', '_').replace('.', '_') == \
+                project.replace('-', '_').replace('.', '_')
             if pkg.has_metadata:
                 pkgkey = PkgKey(pkg.project, pkg.version)
                 assert pkgkey in example.metas
@@ -129,8 +130,6 @@ def test_load_example_pypi_list_data() -> None:
 # The reason for this is that when we use the MockListClient class to test
 # the internal_server_listing module, we should not have to worry about
 # the MockListClient class behaving in unexpected ways.
-
-
 
 
 # Section with tests of the internal_server_listing module.
