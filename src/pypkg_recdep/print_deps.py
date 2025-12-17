@@ -61,11 +61,11 @@ def print_one_pkg_short(file: TextIO, pkg: PkgKey, data: PkgInfo,
     if data['dependencies']:
         print('  - Dependencies:', file=file)
         for dep in data['dependencies']:
-            if dep.specifier is not None:
+            if dep.specifier:
                 print(f'    - {dep.name}  {str(dep.specifier)}',
                       file=file)
             else:
-                print(f'    -  {dep.name}', file=file)
+                print(f'    - {dep.name}', file=file)
             print_fulfilling_pkg(file=file, req=dep, all_deps=all_deps)
 
 
