@@ -10,7 +10,7 @@ import os
 import re
 from tempfile import TemporaryDirectory
 import pytest
-from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd
+from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd, get_def_domain
 from pypkg_recdep.list_ado_content import UrlInfo
 from pypkg_recdep.exclude import ExcludeInfo
 
@@ -380,6 +380,208 @@ def test_listinternal_command(capsys, monkeypatch, args, expected_calls):
         create_mock_functions(call_log)
 
     # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
+        mock_list_in_internal_server)
+
+    # Run command
+    ret = pypkg_recdep_cmd(arguments=args)
+    assert ret == 0
+
+    # Verify calls
+    verify_function_calls(call_log, expected_calls)
+
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+# Section with tests of get_def_domain edge cases
+
+
+@pytest.mark.parametrize('fqdn,expected',
+                         [('hostname', 'local'),
+                          ('hostname.local', 'local'),
+                          ('hostname.example', 'local.example'),
+                          ('hostname.localdomain', 'localdomain'),
+                          ('hostname.example.com', 'example.com'),
+                          ('hostname.sub.example.com', 'example.com')])
+def test_get_def_domain(monkeypatch, fqdn, expected):
+    """Test get_def_domain with various FQDN values."""
+    monkeypatch.setattr('pypkg_recdep.pkg_recdep_cmd.getfqdn', lambda: fqdn)
+    result = get_def_domain()
+    assert result == expected
+
+
+def test_get_def_domain_empty_dlist(monkeypatch):
+    """Test get_def_domain when dlist becomes empty (line 87)."""
+    # hostname -> split('.')[1:] -> [] -> len < 1 -> ['local'] (line 87)
+    monkeypatch.setattr('pypkg_recdep.pkg_recdep_cmd.getfqdn',
+                        lambda: 'hostname')
+    result = get_def_domain()
+    assert result == 'local'
+
+
+@pytest.mark.parametrize('fqdn,expected',
+                         [('hostname.example', 'local.example'),
+                          ('hostname.test', 'local.test'),
+                          ('hostname.mydomain', 'local.mydomain')])
+def test_get_def_domain_insert_local(monkeypatch, fqdn, expected):
+    """Test get_def_domain when local is inserted (line 89)."""
+    # Mock getfqdn to return a value that results in dlist with len < 2
+    # and dlist[0] != 'local' and != 'localdomain'
+    monkeypatch.setattr('pypkg_recdep.pkg_recdep_cmd.getfqdn', lambda: fqdn)
+    result = get_def_domain()
+    assert result == expected
+
+
+# Section with tests of argument parsing for different invocations
+
+
+@pytest.mark.parametrize('args,expected_calls',
+                         [(['python3', 'printdeps', '--package', 'mypkg',
+                            '--output', 'out.md'],
+                           {'resolve_all_dependencies': {
+                               'root_package': 'mypkg',
+                               'python_version': 'check_default',
+                               'max_metadata_version': 'check_default'},
+                            'print_deps': {
+                               'outfilename': 'out.md',
+                               'purls': None,
+                               'exclude_txt': 'no exclues',
+                               'exclude_csv': None}}),
+                          (['python', 'listado', '--output', 'ado.csv'],
+                           {'list_ado_content': {
+                               'file_name': 'ado.csv',
+                               'url_info_instance': 'check_default',
+                               'url_info_collection': 'check_default',
+                               'url_info_pat_file': None,
+                               'project': None,
+                               'include_types': 'check_default'}})])
+def test_python_invocation(monkeypatch, capsys, args, expected_calls):
+    """Test pypkg_recdep_cmd with python invocation (line 307)."""
+    # Track function calls
+    call_log: dict[str, list[dict]] = {}
+    (mock_resolve_all_dependencies, mock_print_deps,
+     mock_list_ado_content, _) = create_mock_functions(call_log)
+
+    # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.resolve_all_dependencies',
+        mock_resolve_all_dependencies)
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.print_deps',
+        mock_print_deps)
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
+        mock_list_ado_content)
+
+    # Run command
+    ret = pypkg_recdep_cmd(arguments=args)
+    assert ret == 0
+
+    # Verify calls
+    verify_function_calls(call_log, expected_calls)
+
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('args,expected_calls',
+                         [(['-m', 'printdeps', '--package', 'mypkg',
+                            '--output', 'out.md'],
+                           {'resolve_all_dependencies': {
+                               'root_package': 'mypkg',
+                               'python_version': 'check_default',
+                               'max_metadata_version': 'check_default'},
+                            'print_deps': {
+                               'outfilename': 'out.md',
+                               'purls': None,
+                               'exclude_txt': 'no exclues',
+                               'exclude_csv': None}}),
+                          (['-m', 'listinternal', '--output', 'internal.csv'],
+                           {'list_in_internal_server': {
+                               'server_url': 'check_default',
+                               'pat_file': None,
+                               'output_file': 'internal.csv',
+                               'limit': None}})])
+def test_module_invocation(monkeypatch, capsys, args, expected_calls):
+    """Test pypkg_recdep_cmd with -m module invocation (line 309)."""
+    # Track function calls
+    call_log: dict[str, list[dict]] = {}
+    (mock_resolve_all_dependencies, mock_print_deps,
+     _, mock_list_in_internal_server) = create_mock_functions(call_log)
+
+    # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.resolve_all_dependencies',
+        mock_resolve_all_dependencies)
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.print_deps',
+        mock_print_deps)
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
+        mock_list_in_internal_server)
+
+    # Run command
+    ret = pypkg_recdep_cmd(arguments=args)
+    assert ret == 0
+
+    # Verify calls
+    verify_function_calls(call_log, expected_calls)
+
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('args,expected_calls',
+                         [(['script.py', 'printdeps', '--package', 'mypkg',
+                            '--output', 'out.md'],
+                           {'resolve_all_dependencies': {
+                               'root_package': 'mypkg',
+                               'python_version': 'check_default',
+                               'max_metadata_version': 'check_default'},
+                            'print_deps': {
+                               'outfilename': 'out.md',
+                               'purls': None,
+                               'exclude_txt': 'no exclues',
+                               'exclude_csv': None}}),
+                          (['pypkg_recdep_cmd.py', 'listado',
+                            '--output', 'ado.csv'],
+                           {'list_ado_content': {
+                               'file_name': 'ado.csv',
+                               'url_info_instance': 'check_default',
+                               'url_info_collection': 'check_default',
+                               'url_info_pat_file': None,
+                               'project': None,
+                               'include_types': 'check_default'}}),
+                          (['/path/to/script.py', 'listinternal',
+                            '--output', 'internal.csv'],
+                           {'list_in_internal_server': {
+                               'server_url': 'check_default',
+                               'pat_file': None,
+                               'output_file': 'internal.csv',
+                               'limit': None}})])
+def test_py_file_invocation(monkeypatch, capsys, args, expected_calls):
+    """Test pypkg_recdep_cmd with .py file invocation (line 311)."""
+    # Track function calls
+    call_log: dict[str, list[dict]] = {}
+    (mock_resolve_all_dependencies, mock_print_deps,
+     mock_list_ado_content, mock_list_in_internal_server) = \
+        create_mock_functions(call_log)
+
+    # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.resolve_all_dependencies',
+        mock_resolve_all_dependencies)
+    monkeypatch.setattr(
+        'pypkg_recdep.print_deps.print_deps',
+        mock_print_deps)
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
+        mock_list_ado_content)
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
         mock_list_in_internal_server)
