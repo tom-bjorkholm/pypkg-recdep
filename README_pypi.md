@@ -26,7 +26,7 @@ pip install --upgrade pypkg-recdep
 
 * It creates a list of all dependencies of a package on PyPI and includes other information (like licences) that might be needed to evaluate if the use of package is OK in a specific context.
   * All dependencies includes not only the direct dependencies but also the indirect dependencies of the dependencies.
-* It can also make a list of all packages available in an internal ADO server hosting the internal package repository.
+* It can also make a list of all packages available in an internal Azure Devops (ADO) server hosting the internal package repository.
 * It can also make a list of all packages available in an internal server using PyPI protocols hosting the internal package repository.
 * The lists of internally available packages can be used to as input when creating the list of all dependencies of a package on PyPI. Then the produced output differentiates between internally already available packages and packages that need to be processed to become available internally.
 
@@ -34,8 +34,8 @@ pip install --upgrade pypkg-recdep
 
 | Version | Date        | Python version  | Description                         |
 |---------|-------------|-----------------|-------------------------------------|
-| 0.1     | 15 Aug 2025 | 3.12 or newer   | First released version              |
 | 0.2.1   | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
+| 0.1     | 15 Aug 2025 | 3.12 or newer   | First released version              |
 
 ## How to use it
 
@@ -61,7 +61,7 @@ On Microsoft Windows:
 
 ### Get information on first packages
 
-So you have set up a service to store python packages in your isolated network. The first thing you need to do is to get information from PyPI.org about a few packages that are candidates to have on you internal network. However, you are using the old Python 3.12 in the internal network so all packages should run on that version. Also the sercie to store python packages have a bug for metadata version greater than 2.3, so you need to select package versions based on this. You also want a list of PURLs [https://github.com/package-url/purl-spec#purl](https://github.com/package-url/purl-spec#purl) to feed into some script you have.
+So you have set up a service to store python packages in your isolated network. The first thing you need to do is to get information from PyPI.org about a few packages that are candidates to have on you internal network. However, you are using the old Python 3.12 in the internal network so all packages should run on that version. Also the service to store python packages have a bug for metadata version greater than 2.3, so you need to select package versions based on this. You also want a list of PURLs [https://github.com/package-url/purl-spec#purl](https://github.com/package-url/purl-spec#purl) to feed into some script you have.
 
 On a computer with internet access run on mac or Linux:
 
@@ -95,17 +95,17 @@ or using the short version of the command line flags on Microsoft Windows:
 File purls.txt exists. Appending to it.
 ````
 
-As you notice you will need to let the program create a separate markdown file with infomration for each top-level package you want information on. This markdown file contains information on that package and on all packages it depends on, and on all packages the dependencies depend on, and so on.
+As you notice you will need to let the program create a separate markdown file with information for each top-level package you want information on. This markdown file contains information on that package and on all packages it depends on, and on all packages the dependencies depend on, and so on.
 However, you can use the same file name of the list of PURLs for several top level packages.
 
 ### Knowing what is on your server
 
-Once you have downloaded a number of packages and uploaded them to you local server on your local isolated network, you want to know what you already have locally. You want to avoid analyzing and downloading versions of packages that you already have.
-To solve this pypkg_recdep can list what you have on you local server.
+Once you have downloaded a number of packages and uploaded them to your local server on your local isolated network, you want to know what you already have locally. You want to avoid analyzing and downloading versions of packages that you already have.
+To solve this pypkg_recdep can list what you have on your local server.
 
 #### Using PyPI REST API to list your local server
 
-On a Linux or mac computer on you local network run:
+On a Linux or mac computer on your local network run:
 
 ```` text
  % python3 -m pypkg_recdep listinternal --url https://pypi.local --output internal.csv
@@ -177,7 +177,7 @@ On a computer with internet access run on mac or Linux:
 Of course this can also be done on using the short versions of the command line flags
 
 ```` text
-% python3 -m pypkg_recdep printdeps -p excel-list-transform -y 3.12 -m 2.3 -l purls.txt --o excel-list-transform.md -e internal.csv -t 'already on internal server' 
+% python3 -m pypkg_recdep printdeps -p excel-list-transform -y 3.12 -m 2.3 -l purls.txt -o excel-list-transform.md -e internal.csv -t 'already on internal server' 
 ````
 
 To run these on a computer running Microsoft Windows just type "python" instead of "python3".
