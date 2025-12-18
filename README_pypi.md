@@ -188,7 +188,7 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 
 ## Test summary
 
-* Test result: 396 passed in 4s
+* Test result: 396 passed in 5s
 * No Flake8 warnings.
 * No mypy errors found.
-* 0.2.2 built and tested using python version: Python 3.14.0
+* 0.2.2 built and tested using python version: Python 3.14.2
