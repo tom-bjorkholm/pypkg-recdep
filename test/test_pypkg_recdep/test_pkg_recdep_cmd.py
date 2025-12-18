@@ -117,6 +117,134 @@ def test_error_messages(capsys, args, expected_error):
 # Section with tests of correct command lines
 
 
+def create_mock_functions(call_log: dict[str, list[dict]]):
+    """Create mock functions that log calls to call_log.
+
+    @param call_log Dictionary to log function calls to.
+    @return Tuple of (mock_resolve_all_dependencies, mock_print_deps,
+            mock_list_ado_content, mock_list_in_internal_server).
+    """
+    def mock_resolve_all_dependencies(root_package: str,
+                                      python_version: str,
+                                      max_metadata_version:
+                                      Optional[str] = None):
+        """Mock resolve_all_dependencies."""
+        call_log.setdefault('resolve_all_dependencies', []).append({
+            'root_package': root_package,
+            'python_version': python_version,
+            'max_metadata_version': max_metadata_version})
+        return {}
+
+    def mock_print_deps(deps, outfilename: str, purls: Optional[str],
+                        exclude: ExcludeInfo):
+        """Mock print_deps."""
+        # Suppress unused argument warning
+        _ = deps
+        call_log.setdefault('print_deps', []).append({
+            'outfilename': outfilename,
+            'purls': purls,
+            'exclude_txt': exclude.txt,
+            'exclude_csv': exclude.csv_filename
+            if exclude.csv_filename != 'None' else None})
+        return 0
+
+    def mock_list_ado_content(file_name: str, url_info: UrlInfo,
+                              project: Optional[str],
+                              include_types: list[str]):
+        """Mock list_ado_content."""
+        call_log.setdefault('list_ado_content', []).append({
+            'file_name': file_name,
+            'url_info': url_info,
+            'url_info_instance': url_info.instance,
+            'url_info_collection': url_info.collection,
+            'url_info_pat_file': url_info.pat_file,
+            'project': project,
+            'include_types': include_types})
+        return 0
+
+    def mock_list_in_internal_server(server_url: str, pat_file: str,
+                                     output_file: str,
+                                     limit: Optional[int]):
+        """Mock list_in_internal_server."""
+        call_log.setdefault('list_in_internal_server', []).append({
+            'server_url': server_url,
+            'pat_file': pat_file,
+            'output_file': output_file,
+            'limit': limit})
+
+    return (mock_resolve_all_dependencies, mock_print_deps,
+            mock_list_ado_content, mock_list_in_internal_server)
+
+
+# pylint: disable=too-many-branches
+def verify_function_calls(call_log: dict[str, list[dict]],
+                          expected_calls: dict[str, dict]):
+    """Verify that functions were called with expected arguments.
+
+    @param call_log Dictionary with logged function calls.
+    @param expected_calls Dictionary with expected function calls.
+    """
+    for func_name, expected_call in expected_calls.items():
+        assert func_name in call_log, \
+            f"Function {func_name} was not called"
+        calls = call_log[func_name]
+        assert len(calls) == 1, \
+            f"Function {func_name} called {len(calls)} times, expected 1"
+        actual_call = calls[0]
+        for key, expected_value in expected_call.items():
+            if key == 'url_info':
+                assert isinstance(actual_call[key], UrlInfo)
+                url_info = actual_call[key]
+                if expected_value.instance is not None:
+                    assert url_info.instance == expected_value.instance
+                if expected_value.collection is not None:
+                    assert url_info.collection == \
+                        expected_value.collection
+                if expected_value.pat_file is not None:
+                    assert url_info.pat_file == \
+                        expected_value.pat_file
+            elif key == 'url_info_instance':
+                assert isinstance(actual_call['url_info'], UrlInfo)
+                url_info = actual_call['url_info']
+                if expected_value == 'check_default':
+                    assert url_info.instance is not None
+                else:
+                    assert url_info.instance == expected_value
+            elif key == 'url_info_collection':
+                assert isinstance(actual_call['url_info'], UrlInfo)
+                url_info = actual_call['url_info']
+                if expected_value == 'check_default':
+                    assert url_info.collection is not None
+                else:
+                    assert url_info.collection == expected_value
+            elif key == 'url_info_pat_file':
+                assert isinstance(actual_call['url_info'], UrlInfo)
+                url_info = actual_call['url_info']
+                assert url_info.pat_file == expected_value
+            elif key == 'exclude_txt':
+                assert actual_call[key] == expected_value, \
+                    f"For {func_name}.{key}: expected {expected_value}, " \
+                    f"got {actual_call[key]}"
+            elif key == 'exclude_csv':
+                assert actual_call[key] == expected_value, \
+                    f"For {func_name}.{key}: expected {expected_value}, " \
+                    f"got {actual_call[key]}"
+            elif key == 'include_types':
+                if expected_value == 'check_default':
+                    assert actual_call[key] is not None
+                elif expected_value is not None:
+                    assert actual_call[key] == expected_value
+            elif expected_value == 'check_default':
+                assert actual_call[key] is not None, \
+                    f"For {func_name}.{key}: expected non-None value, " \
+                    f"got {actual_call[key]}"
+            else:
+                if expected_value is not None:
+                    assert actual_call[key] == expected_value, \
+                        f"For {func_name}.{key}: expected {expected_value}, " \
+                        f"got {actual_call[key]}"
+
+
 @pytest.mark.parametrize('args,expected_calls',
                          [(['printdeps', '--package', 'mypkg',
                             '--output', 'out.md'],
@@ -140,8 +268,52 @@ def test_error_messages(capsys, args, expected_error):
                                'outfilename': 'test.md',
                                'purls': 'purls.txt',
                                'exclude_txt': 'excluded text',
-                               'exclude_csv': 'TEMP_EXCL_CSV'}}),
-                          (['listado', '--output', 'ado.csv'],
+                               'exclude_csv': 'TEMP_EXCL_CSV'}})])
+def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
+    """Test printdeps command with mocked functions."""
+    with TemporaryDirectory() as temp_dir:
+        # Create temporary CSV file if needed
+        if 'TEMP_EXCL_CSV' in str(args):
+            temp_csv_path = os.path.join(temp_dir, 'excl.csv')
+            with open(temp_csv_path, 'w', encoding='utf-8') as temp_file:
+                temp_file.write('Name,Version\n')
+                temp_file.write('testpkg,1.0.0\n')
+            # Replace TEMP_EXCL_CSV with actual file name
+            args = [arg.replace('TEMP_EXCL_CSV', temp_csv_path)
+                    if isinstance(arg, str) else arg for arg in args]
+            # Update expected_calls
+            if 'print_deps' in expected_calls:
+                if 'exclude_csv' in expected_calls['print_deps']:
+                    expected_calls['print_deps']['exclude_csv'] = \
+                        temp_csv_path
+
+        # Track function calls
+        call_log: dict[str, list[dict]] = {}
+        (mock_resolve_all_dependencies, mock_print_deps,
+         _, _) = create_mock_functions(call_log)
+
+        # Patch functions
+        monkeypatch.setattr(
+            'pypkg_recdep.print_deps.resolve_all_dependencies',
+            mock_resolve_all_dependencies)
+        monkeypatch.setattr(
+            'pypkg_recdep.print_deps.print_deps',
+            mock_print_deps)
+
+        # Run command
+        ret = pypkg_recdep_cmd(arguments=args)
+        assert ret == 0
+
+        # Verify calls
+        verify_function_calls(call_log, expected_calls)
+
+        out, err = capsys.readouterr()
+        assert '' == out
+        assert '' == err
+
+
+@pytest.mark.parametrize('args,expected_calls',
+                         [(['listado', '--output', 'ado.csv'],
                            {'list_ado_content': {
                                'file_name': 'ado.csv',
                                'url_info_instance': 'check_default',
@@ -162,8 +334,32 @@ def test_error_messages(capsys, args, expected_error):
                                'include_types': ['wheel', 'sdist']}}),
                           (['listado', '-p', 'None'],
                            {'list_ado_content': {
-                               'project': None}}),
-                          (['listinternal', '--output', 'internal.csv'],
+                               'project': None}})])
+def test_listado_command(capsys, monkeypatch, args, expected_calls):
+    """Test listado command with mocked functions."""
+    # Track function calls
+    call_log: dict[str, list[dict]] = {}
+    (_, _, mock_list_ado_content, _) = create_mock_functions(call_log)
+
+    # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
+        mock_list_ado_content)
+
+    # Run command
+    ret = pypkg_recdep_cmd(arguments=args)
+    assert ret == 0
+
+    # Verify calls
+    verify_function_calls(call_log, expected_calls)
+
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('args,expected_calls',
+                         [(['listinternal', '--output', 'internal.csv'],
                            {'list_in_internal_server': {
                                'server_url': 'check_default',
                                'pat_file': None,
@@ -176,297 +372,25 @@ def test_error_messages(capsys, args, expected_error):
                                'pat_file': 'token.txt',
                                'output_file': 'out.csv',
                                'limit': 10}})])
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
-def test_correct_command_lines(capsys, monkeypatch, args, expected_calls):
-    """Test correct command lines with mocked functions."""
-    # Create temporary CSV file if needed
-    if 'TEMP_EXCL_CSV' in str(args):
-        with TemporaryDirectory() as temp_dir:
-            temp_csv_path = os.path.join(temp_dir, 'excl.csv')
-            with open(temp_csv_path, 'w', encoding='utf-8') as temp_file:
-                temp_file.write('Name,Version\n')
-                temp_file.write('testpkg,1.0.0\n')
-            # Verify file exists
-            assert os.path.exists(temp_csv_path), \
-                f"Temp CSV file not created: {temp_csv_path}"
-            # Replace TEMP_EXCL_CSV with actual file name
-            args = [arg.replace('TEMP_EXCL_CSV', temp_csv_path)
-                    if isinstance(arg, str) else arg for arg in args]
-            # Update expected_calls
-            if 'print_deps' in expected_calls:
-                if 'exclude_csv' in expected_calls['print_deps']:
-                    expected_calls['print_deps']['exclude_csv'] = \
-                        temp_csv_path
+def test_listinternal_command(capsys, monkeypatch, args, expected_calls):
+    """Test listinternal command with mocked functions."""
+    # Track function calls
+    call_log: dict[str, list[dict]] = {}
+    (_, _, _, mock_list_in_internal_server) = \
+        create_mock_functions(call_log)
 
-            # Track function calls
-            call_log: dict[str, list[dict]] = {}
+    # Patch functions
+    monkeypatch.setattr(
+        'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
+        mock_list_in_internal_server)
 
-            def mock_resolve_all_dependencies(root_package: str,
-                                              python_version: str,
-                                              max_metadata_version:
-                                              Optional[str] = None):
-                """Mock resolve_all_dependencies."""
-                call_log.setdefault('resolve_all_dependencies', []).append({
-                    'root_package': root_package,
-                    'python_version': python_version,
-                    'max_metadata_version': max_metadata_version})
-                return {}
+    # Run command
+    ret = pypkg_recdep_cmd(arguments=args)
+    assert ret == 0
 
-            def mock_print_deps(deps, outfilename: str, purls: Optional[str],
-                                exclude: ExcludeInfo):
-                """Mock print_deps."""
-                # Suppress unused argument warning
-                _ = deps
-                call_log.setdefault('print_deps', []).append({
-                    'outfilename': outfilename,
-                    'purls': purls,
-                    'exclude_txt': exclude.txt,
-                    'exclude_csv': exclude.csv_filename
-                    if exclude.csv_filename != 'None' else None})
-                return 0
+    # Verify calls
+    verify_function_calls(call_log, expected_calls)
 
-            def mock_list_ado_content(file_name: str, url_info: UrlInfo,
-                                      project: Optional[str],
-                                      include_types: list[str]):
-                """Mock list_ado_content."""
-                call_log.setdefault('list_ado_content', []).append({
-                    'file_name': file_name,
-                    'url_info': url_info,
-                    'url_info_instance': url_info.instance,
-                    'url_info_collection': url_info.collection,
-                    'url_info_pat_file': url_info.pat_file,
-                    'project': project,
-                    'include_types': include_types})
-                return 0
-
-            def mock_list_in_internal_server(server_url: str, pat_file: str,
-                                             output_file: str,
-                                             limit: Optional[int]):
-                """Mock list_in_internal_server."""
-                call_log.setdefault('list_in_internal_server', []).append({
-                    'server_url': server_url,
-                    'pat_file': pat_file,
-                    'output_file': output_file,
-                    'limit': limit})
-
-            # Patch functions
-            monkeypatch.setattr(
-                'pypkg_recdep.print_deps.resolve_all_dependencies',
-                mock_resolve_all_dependencies)
-            monkeypatch.setattr(
-                'pypkg_recdep.print_deps.print_deps',
-                mock_print_deps)
-            monkeypatch.setattr(
-                'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
-                mock_list_ado_content)
-            monkeypatch.setattr(
-                'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
-                mock_list_in_internal_server)
-
-            # Verify file still exists before running command
-            assert os.path.exists(temp_csv_path), \
-                f"Temp CSV file missing before command: {temp_csv_path}"
-            # Run command (don't deepcopy args to preserve temp_csv_path)
-            ret = pypkg_recdep_cmd(arguments=args)
-            assert ret == 0
-
-            # Verify calls
-            for func_name, expected_call in expected_calls.items():
-                assert func_name in call_log, \
-                    f"Function {func_name} was not called"
-                calls = call_log[func_name]
-                assert len(calls) == 1, \
-                    f"Function {func_name} called {len(calls)} times, " \
-                    f"expected 1"
-                actual_call = calls[0]
-                for key, expected_value in expected_call.items():
-                    if key == 'url_info':
-                        assert isinstance(actual_call[key], UrlInfo)
-                        url_info = actual_call[key]
-                        if expected_value.instance is not None:
-                            assert url_info.instance == expected_value.instance
-                        if expected_value.collection is not None:
-                            assert url_info.collection == \
-                                expected_value.collection
-                        if expected_value.pat_file is not None:
-                            assert url_info.pat_file == \
-                                expected_value.pat_file
-                    elif key == 'url_info_instance':
-                        assert isinstance(actual_call['url_info'], UrlInfo)
-                        url_info = actual_call['url_info']
-                        if expected_value == 'check_default':
-                            assert url_info.instance is not None
-                        else:
-                            assert url_info.instance == expected_value
-                    elif key == 'url_info_collection':
-                        assert isinstance(actual_call['url_info'], UrlInfo)
-                        url_info = actual_call['url_info']
-                        if expected_value == 'check_default':
-                            assert url_info.collection is not None
-                        else:
-                            assert url_info.collection == expected_value
-                    elif key == 'url_info_pat_file':
-                        assert isinstance(actual_call['url_info'], UrlInfo)
-                        url_info = actual_call['url_info']
-                        assert url_info.pat_file == expected_value
-                    elif key == 'exclude_txt':
-                        assert actual_call[key] == expected_value, \
-                            f"For {func_name}.{key}: expected " \
-                            f"{expected_value}, got {actual_call[key]}"
-                    elif key == 'exclude_csv':
-                        assert actual_call[key] == expected_value, \
-                            f"For {func_name}.{key}: expected " \
-                            f"{expected_value}, got {actual_call[key]}"
-                    elif key == 'include_types':
-                        if expected_value == 'check_default':
-                            assert actual_call[key] is not None
-                        elif expected_value is not None:
-                            assert actual_call[key] == expected_value
-                    elif expected_value == 'check_default':
-                        assert actual_call[key] is not None, \
-                            f"For {func_name}.{key}: expected non-None " \
-                            f"value, got {actual_call[key]}"
-                    else:
-                        if expected_value is not None:
-                            assert actual_call[key] == expected_value, \
-                                f"For {func_name}.{key}: expected " \
-                                f"{expected_value}, got {actual_call[key]}"
-
-            out, err = capsys.readouterr()
-            assert '' == out
-            assert '' == err
-    else:
-        # Track function calls
-        call_log: dict[str, list[dict]] = {}
-
-        def mock_resolve_all_dependencies(root_package: str,
-                                          python_version: str,
-                                          max_metadata_version:
-                                          Optional[str] = None):
-            """Mock resolve_all_dependencies."""
-            call_log.setdefault('resolve_all_dependencies', []).append({
-                'root_package': root_package,
-                'python_version': python_version,
-                'max_metadata_version': max_metadata_version})
-            return {}
-
-        def mock_print_deps(deps, outfilename: str, purls: Optional[str],
-                            exclude: ExcludeInfo):
-            """Mock print_deps."""
-            # Suppress unused argument warning
-            _ = deps
-            call_log.setdefault('print_deps', []).append({
-                'outfilename': outfilename,
-                'purls': purls,
-                'exclude_txt': exclude.txt,
-                'exclude_csv': exclude.csv_filename
-                if exclude.csv_filename != 'None' else None})
-            return 0
-
-        def mock_list_ado_content(file_name: str, url_info: UrlInfo,
-                                  project: Optional[str],
-                                  include_types: list[str]):
-            """Mock list_ado_content."""
-            call_log.setdefault('list_ado_content', []).append({
-                'file_name': file_name,
-                'url_info': url_info,
-                'url_info_instance': url_info.instance,
-                'url_info_collection': url_info.collection,
-                'url_info_pat_file': url_info.pat_file,
-                'project': project,
-                'include_types': include_types})
-            return 0
-
-        def mock_list_in_internal_server(server_url: str, pat_file: str,
-                                         output_file: str,
-                                         limit: Optional[int]):
-            """Mock list_in_internal_server."""
-            call_log.setdefault('list_in_internal_server', []).append({
-                'server_url': server_url,
-                'pat_file': pat_file,
-                'output_file': output_file,
-                'limit': limit})
-
-        # Patch functions
-        monkeypatch.setattr(
-            'pypkg_recdep.print_deps.resolve_all_dependencies',
-            mock_resolve_all_dependencies)
-        monkeypatch.setattr(
-            'pypkg_recdep.print_deps.print_deps',
-            mock_print_deps)
-        monkeypatch.setattr(
-            'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
-            mock_list_ado_content)
-        monkeypatch.setattr(
-            'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
-            mock_list_in_internal_server)
-
-        # Run command
-        ret = pypkg_recdep_cmd(arguments=args)
-        assert ret == 0
-
-        # Verify calls
-        for func_name, expected_call in expected_calls.items():
-            assert func_name in call_log, \
-                f"Function {func_name} was not called"
-            calls = call_log[func_name]
-            assert len(calls) == 1, \
-                f"Function {func_name} called {len(calls)} times, " \
-                f"expected 1"
-            actual_call = calls[0]
-            for key, expected_value in expected_call.items():
-                if key == 'url_info':
-                    assert isinstance(actual_call[key], UrlInfo)
-                    url_info = actual_call[key]
-                    if expected_value.instance is not None:
-                        assert url_info.instance == expected_value.instance
-                    if expected_value.collection is not None:
-                        assert url_info.collection == \
-                            expected_value.collection
-                    if expected_value.pat_file is not None:
-                        assert url_info.pat_file == \
-                            expected_value.pat_file
-                elif key == 'url_info_instance':
-                    assert isinstance(actual_call['url_info'], UrlInfo)
-                    url_info = actual_call['url_info']
-                    if expected_value == 'check_default':
-                        assert url_info.instance is not None
-                    else:
-                        assert url_info.instance == expected_value
-                elif key == 'url_info_collection':
-                    assert isinstance(actual_call['url_info'], UrlInfo)
-                    url_info = actual_call['url_info']
-                    if expected_value == 'check_default':
-                        assert url_info.collection is not None
-                    else:
-                        assert url_info.collection == expected_value
-                elif key == 'url_info_pat_file':
-                    assert isinstance(actual_call['url_info'], UrlInfo)
-                    url_info = actual_call['url_info']
-                    assert url_info.pat_file == expected_value
-                elif key == 'exclude_txt':
-                    assert actual_call[key] == expected_value, \
-                        f"For {func_name}.{key}: expected " \
-                        f"{expected_value}, got {actual_call[key]}"
-                elif key == 'exclude_csv':
-                    assert actual_call[key] == expected_value, \
-                        f"For {func_name}.{key}: expected " \
-                        f"{expected_value}, got {actual_call[key]}"
-                elif key == 'include_types':
-                    if expected_value == 'check_default':
-                        assert actual_call[key] is not None
-                    elif expected_value is not None:
-                        assert actual_call[key] == expected_value
-                elif expected_value == 'check_default':
-                    assert actual_call[key] is not None, \
-                        f"For {func_name}.{key}: expected non-None " \
-                        f"value, got {actual_call[key]}"
-                else:
-                    if expected_value is not None:
-                        assert actual_call[key] == expected_value, \
-                            f"For {func_name}.{key}: expected " \
-                            f"{expected_value}, got {actual_call[key]}"
-
-        out, err = capsys.readouterr()
-        assert '' == out
-        assert '' == err
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
