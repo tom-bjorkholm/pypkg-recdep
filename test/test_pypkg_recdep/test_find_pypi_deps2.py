@@ -397,6 +397,36 @@ GBP_1R3 = GetBestPkgRes(name='abc', version='0.9', numreqs=0,
                         license=None, lic_text=False)
 
 
+def create_test_pkg_spec() -> list[MockSpecPage]:
+    """Create a common test spec with test-pkg and packaging.
+
+    This spec is used in multiple test files to avoid code duplication.
+    @return A list of MockSpecPage objects for test-pkg and packaging.
+    """
+    return [
+        MockSpecPage(
+            name='test-pkg',
+            base='elt',
+            metas=[
+                MockSpecMeta(meta=True, version='1.0.0',
+                             metaversion='2.1',
+                             reqs=['packaging'],
+                             py_req='>=3.10')
+            ]
+        ),
+        MockSpecPage(
+            name='packaging',
+            base='jai',
+            metas=[
+                MockSpecMeta(meta=True, version='24.0',
+                             metaversion='2.1',
+                             reqs=[],
+                             py_req='>=3.8')
+            ]
+        )
+    ]
+
+
 @pytest.mark.parametrize('cspec,req,pyv,metav,res',
                          [(GBP_C1, 'abc >= 0.8', '3.14', None, GBP_1R1),
                           (GBP_C1, 'abc >= 0.8', '3.11', None, GBP_1R2),

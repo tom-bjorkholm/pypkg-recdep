@@ -10,8 +10,8 @@ from io import StringIO
 import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
-from test_find_pypi_deps2 import MockClient1, MockSpecPage, \
-    MockSpecMeta, LookupWhat
+from test_find_pypi_deps2 import MockClient1, LookupWhat, \
+    create_test_pkg_spec
 from pypkg_recdep.print_deps import print_fulfilling_pkg, \
     print_one_pkg_short, print_one_pkg, print_purl, print_deps, \
     print_rec_deps
@@ -312,28 +312,7 @@ def test_print_rec_deps_with_mock(capsys, monkeypatch):
 
 def test_print_rec_deps_with_mockclient1(capsys, monkeypatch):
     """Test print_rec_deps with MockClient1."""
-    spec = [
-        MockSpecPage(
-            name='test-pkg',
-            base='elt',
-            metas=[
-                MockSpecMeta(meta=True, version='1.0.0',
-                             metaversion='2.1',
-                             reqs=['packaging'],
-                             py_req='>=3.10')
-            ]
-        ),
-        MockSpecPage(
-            name='packaging',
-            base='jai',
-            metas=[
-                MockSpecMeta(meta=True, version='24.0',
-                             metaversion='2.1',
-                             reqs=[],
-                             py_req='>=3.8')
-            ]
-        )
-    ]
+    spec = create_test_pkg_spec()
 
     def mock_pypisimple():
         """Return MockClient1."""
