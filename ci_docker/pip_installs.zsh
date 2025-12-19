@@ -6,26 +6,16 @@
 
 for PYTHON in python3.10 python3.11 python3.12 python3.13 python3.14
 do
-    ${PYTHON} -m pip install --upgrade pip
-    ${PYTHON} -m pip install --upgrade pylint
-    ${PYTHON} -m pip install --upgrade lxml
-    ${PYTHON} -m pip install --upgrade mypy
-    ${PYTHON} -m pip install --upgrade coverage
-    ${PYTHON} -m pip install --upgrade build
-    ${PYTHON} -m pip install --upgrade setuptools
+    for pkg in pip pylint lxml mypy coverage build setuptools \
+               pytest pytest-html flake8 flake8-html pytest-flake8 \
+               pytest-skip-slow flake8-docstrings pytest-pylint \
+               pytest-cov wheel pypi-simple requests types-requests \
+               argcomplete xmltodict types-xmltodict Pillow packaging \
+               openpyxl types-openpyxl pylightxl XlsxWriter \
+               extract-list excel-list-transform python-docx \
+               odfpy msl-odt python-docx
+    do
+        ${PYTHON} -m pip install --upgrade ${pkg}
+    done
     ${PYTHON} -m pip install twine==6.0.1
-    ${PYTHON} -m pip install --upgrade pytest
-    ${PYTHON} -m pip install --upgrade pytest-html
-    ${PYTHON} -m pip install --upgrade flake8
-    ${PYTHON} -m pip install --upgrade flake8-html
-    ${PYTHON} -m pip install --upgrade pytest-flake8
-    ${PYTHON} -m pip install --upgrade pytest-skip-slow
-    ${PYTHON} -m pip install --upgrade flake8-docstrings
-    ${PYTHON} -m pip install --upgrade pytest-pylint
-    ${PYTHON} -m pip install --upgrade pytest-cov
-    ${PYTHON} -m pip install --upgrade wheel
-    ${PYTHON} -m pip install --upgrade pypi-simple
-    ${PYTHON} -m pip install --upgrade requests
-    ${PYTHON} -m pip install --upgrade types-requests
-    ${PYTHON} -m pip install --upgrade argcomplete
 done
