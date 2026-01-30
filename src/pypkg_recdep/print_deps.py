@@ -7,6 +7,7 @@
 from typing import TextIO, Optional
 from os.path import isfile as os_path_isfile
 from packaging.requirements import Requirement
+from mformat.factory import create_mf
 from pypkg_recdep.find_pypi_deps import resolve_all_dependencies, \
     find_fulfill_req
 from pypkg_recdep.exclude import ExcludeInfo

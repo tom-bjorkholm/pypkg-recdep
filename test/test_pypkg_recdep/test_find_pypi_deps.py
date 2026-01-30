@@ -478,7 +478,8 @@ def test_get_requirements_ok7(capsys):
         out, err = capsys.readouterr()
         assert '' == out
         assert 'Ignoring invalid requirement: some strange text' in err
-        assert 'Expected end or semicolon' in err
+        assert 'Expected semicolon' in err
+        assert 'or end' in err
         assert len(ret) == 2
         assert ret[0].name == 'more_itertools'
         assert not ret[0].specifier.contains(Version('3.1.5'))

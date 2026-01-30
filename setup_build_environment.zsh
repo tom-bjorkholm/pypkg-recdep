@@ -61,6 +61,7 @@ ${PYTHON} -m pip install --upgrade pytest-pylint
 ${PYTHON} -m pip install --upgrade pytest-cov
 ${PYTHON} -m pip install --upgrade wheel
 ${PYTHON} -m pip install --upgrade pypi-simple
+${PYTHON} -m pip install --upgrade mformat
 ${PYTHON} -m pip install --upgrade requests
 ${PYTHON} -m pip install --upgrade types-requests
 ${PYTHON} -m pip install --upgrade argcomplete
