@@ -13,7 +13,7 @@ do
                argcomplete xmltodict types-xmltodict Pillow packaging \
                openpyxl types-openpyxl pylightxl XlsxWriter \
                extract-list excel-list-transform python-docx \
-               odfpy msl-odt python-docx
+               odfpy msl-odt python-docx mformat
     do
         ${PYTHON} -m pip install --upgrade ${pkg}
     done

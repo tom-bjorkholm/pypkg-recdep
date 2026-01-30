@@ -8,6 +8,7 @@ from copy import deepcopy
 from tempfile import TemporaryDirectory
 from io import StringIO
 import pytest
+from mformat.factory import create_mf
 from packaging.requirements import Requirement
 from packaging.version import Version
 from test_find_pypi_deps2 import MockClient1, LookupWhat, \
@@ -60,10 +61,16 @@ def test_print_fulfilling_pkg_ok1(capsys, req_str, all_deps,
                                   expected_out):
     """Test OK cases of print_fulfilling_pkg."""
     req = Requirement(req_str)
-    file = StringIO()
-    print_fulfilling_pkg(file=file, req=req, all_deps=deepcopy(all_deps))
-    output = file.getvalue()
-    assert expected_out in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            for i in range(1, 4):
+                mf.start_bullet_item('x', level=i)
+            print_fulfilling_pkg(mformat=mf, req=req,
+                                 all_deps=deepcopy(all_deps))
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert expected_out in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -75,18 +82,23 @@ def test_print_fulfilling_pkg_ok1(capsys, req_str, all_deps,
       ['- test-pkg', 'Version: 1.0.0', 'Metadata version: 2.1']),
      ('my-lib', '2.3.4', '2.4',
       ['- my-lib', 'Version: 2.3.4', 'Metadata version: 2.4'])])
-def test_print_one_pkg_short_ok1(capsys, name, version, metadata_version,
+def test_print_one_pkg_short_ok1(capsys,  # pylint: disable=too-many-locals # noqa: E501
+                                 name, version, metadata_version,
                                  expected_lines):
     """Test OK cases of print_one_pkg_short."""
     pkg = create_test_pkg(name=name, version=version,
                           metadata_version=metadata_version)
     key = PkgKey(name=name, version=version)
     all_deps: Pkgs = {key: pkg}
-    file = StringIO()
-    print_one_pkg_short(file=file, pkg=key, data=pkg, all_deps=all_deps)
-    output = file.getvalue()
-    for line in expected_lines:
-        assert line in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg_short(mformat=mf, pkg=key, data=pkg,
+                                all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            for line in expected_lines:
+                assert line in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -100,12 +112,16 @@ def test_print_one_pkg_short_with_urls(capsys):
                       'Source': 'http://github.com/test'})
     key = PkgKey(name='test-pkg', version='1.0.0')
     all_deps: Pkgs = {key: pkg}
-    file = StringIO()
-    print_one_pkg_short(file=file, pkg=key, data=pkg, all_deps=all_deps)
-    output = file.getvalue()
-    assert 'project URLs:' in output
-    assert 'Homepage: http://example.com' in output
-    assert 'Source: http://github.com/test' in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg_short(mformat=mf, pkg=key, data=pkg,
+                                all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert 'project URLs:' in output
+            assert 'Homepage: http://example.com' in output
+            assert 'Source: http://github.com/test' in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -120,13 +136,16 @@ def test_print_one_pkg_short_with_deps(capsys):
     main_key = PkgKey(name='main-pkg', version='2.0.0')
     dep_key = PkgKey(name='dep-pkg', version='1.0.0')
     all_deps: Pkgs = {main_key: main_pkg, dep_key: dep_pkg}
-    file = StringIO()
-    print_one_pkg_short(file=file, pkg=main_key, data=main_pkg,
-                        all_deps=all_deps)
-    output = file.getvalue()
-    assert 'Dependencies:' in output
-    assert 'dep-pkg' in output
-    assert '>=1.0' in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg_short(mformat=mf, pkg=main_key, data=main_pkg,
+                                all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert 'Dependencies:' in output
+            assert 'dep-pkg' in output
+            assert '>=1.0' in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -142,14 +161,17 @@ def test_print_one_pkg_ok1(capsys, mainpkg, expected_heading):
         license_text='MIT License\nCopyright 2025')
     key = PkgKey(name='test-pkg', version='1.0.0')
     all_deps: Pkgs = {key: pkg}
-    file = StringIO()
-    print_one_pkg(file=file, pkg=key, data=pkg, mainpkg=mainpkg,
-                  all_deps=all_deps)
-    output = file.getvalue()
-    assert expected_heading in output
-    assert 'test-pkg' in output
-    assert 'License text' in output
-    assert 'MIT License' in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg(mformat=mf, pkg=key, data=pkg, mainpkg=mainpkg,
+                          all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert expected_heading in output
+            assert 'test-pkg' in output
+            assert 'License text' in output
+            assert 'MIT License' in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -161,12 +183,15 @@ def test_print_one_pkg_no_license(capsys):
                           license_text=None)
     key = PkgKey(name='test-pkg', version='1.0.0')
     all_deps: Pkgs = {key: pkg}
-    file = StringIO()
-    print_one_pkg(file=file, pkg=key, data=pkg, mainpkg=False,
-                  all_deps=all_deps)
-    output = file.getvalue()
-    assert 'test-pkg' in output
-    assert 'License text' not in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg(mformat=mf, pkg=key, data=pkg, mainpkg=False,
+                          all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert 'test-pkg' in output
+            assert 'License text' not in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -389,21 +414,25 @@ def test_print_one_pkg_short_all_fields(capsys):
         PkgKey('dep1', '2.5.0'): dep1,
         PkgKey('dep2', '2.0.0'): dep2
     }
-    file = StringIO()
-    print_one_pkg_short(file=file, pkg=key, data=pkg, all_deps=all_deps)
-    output = file.getvalue()
-    assert 'full-pkg' in output
-    assert 'Version: 3.0.0' in output
-    assert 'Metadata version: 2.4' in output
-    assert 'License: Apache-2.0' in output
-    assert 'Homepage: http://full-pkg.org' in output
-    assert 'Maintainer: Full Maintainer' in output
-    assert 'Source URL: http://github.com/full-pkg' in output
-    assert 'project URLs:' in output
-    assert 'Docs: http://docs.full-pkg.org' in output
-    assert 'Dependencies:' in output
-    assert 'dep1' in output
-    assert 'dep2' in output
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg_short(mformat=mf, pkg=key, data=pkg,
+                                all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert 'full-pkg' in output
+            assert 'Version: 3.0.0' in output
+            assert 'Metadata version: 2.4' in output
+            assert 'License: Apache-2.0' in output
+            assert 'Homepage: http://full-pkg.org' in output
+            assert 'Maintainer: Full Maintainer' in output
+            assert 'Source URL: http://github.com/full-pkg' in output
+            assert 'project URLs:' in output
+            assert 'Docs: http://docs.full-pkg.org' in output
+            assert 'Dependencies:' in output
+            assert 'dep1' in output
+            assert 'dep2' in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -418,18 +447,22 @@ def test_print_one_pkg_short_dep_no_specifier(capsys):
     main_key = PkgKey(name='main-pkg', version='2.0.0')
     dep_key = PkgKey(name='dep-pkg', version='1.0.0')
     all_deps: Pkgs = {main_key: main_pkg, dep_key: dep_pkg}
-    file = StringIO()
-    print_one_pkg_short(file=file, pkg=main_key, data=main_pkg,
-                        all_deps=all_deps)
-    output = file.getvalue()
-    assert 'Dependencies:' in output
-    assert 'dep-pkg' in output
-    # Check that dep-pkg appears without version specifier
-    lines = output.split('\n')
-    dep_lines = [line for line in lines if 'dep-pkg' in line]
-    # Should have at least one line with just dep-pkg (no >=, <, etc.)
-    assert any('dep-pkg' in line and '>=' not in line and '<' not in line
-               and '==' not in line for line in dep_lines)
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with create_mf(format_name='md', file_name=outfile) as mf:
+            print_one_pkg_short(mformat=mf, pkg=main_key, data=main_pkg,
+                                all_deps=all_deps)
+        with open(outfile, 'r', encoding='utf8') as file:
+            output = file.read()
+            assert 'Dependencies:' in output
+            assert 'dep-pkg' in output
+            # Check that dep-pkg appears without version specifier
+            lines = output.split('\n')
+            dep_lines = [line for line in lines if 'dep-pkg' in line]
+            # Should have at least one line with just dep-pkg (no >=, <, etc.)
+            assert any('dep-pkg' in line and '>=' not in line
+                       and '<' not in line
+                       and '==' not in line for line in dep_lines)
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -444,7 +477,7 @@ def test_print_deps_only_main_pkg(capsys):
         PkgKey('main-pkg', '1.0.0'): main_pkg,
         PkgKey('dep1', '1.0.0'): dep1
     }
-    # Exclude all packages including main pkg to trigger line 137
+    # Exclude all packages including main pkg to trigger empty kept
     with TemporaryDirectory() as dirname:
         csv_file = dirname + '/exclude.csv'
         with open(csv_file, 'w', encoding='utf8') as f:
@@ -460,8 +493,8 @@ def test_print_deps_only_main_pkg(capsys):
             content = file.read()
         assert 'main-pkg' in content
         assert '## Primary package: main-pkg' in content
-        # When kept is empty (all pkgs excluded), line 137 is executed
-        assert 'Depends only on packages that are {exclude.txt}' in content
+        # When kept is empty (all pkgs excluded)
+        assert 'Depends only on packages that are excluded' in content
         assert 'excluded' in content
     out, err = capsys.readouterr()
     assert '' == out

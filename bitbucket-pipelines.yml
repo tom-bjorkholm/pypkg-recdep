@@ -32,7 +32,6 @@ pipelines:
           script:
             # Bitbucket already checks out the repo into /opt/atlassian/pipelines/agent/build
             - ls
-            - chmod +x ./doBuild.zsh
             - zsh ./doBuild.zsh
           artifacts:
             - dist/**

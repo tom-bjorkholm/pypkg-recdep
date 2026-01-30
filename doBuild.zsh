@@ -40,7 +40,7 @@ BUILDLOG=${DOCOUTDIR}/build_log.txt
 PYTESTLOG=${DOCOUTDIR}/pytest_log.txt
 if (($#VENVOKMARK == 0)) ; then
   echo "No venv: ${VENVOKMARK}"
-  ./setup_build_environment.zsh
+  zsh ./setup_build_environment.zsh
 fi
 . ./venv/bin/activate
 rm -rf build dist
