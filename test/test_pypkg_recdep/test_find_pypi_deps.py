@@ -585,10 +585,10 @@ def test_pyoks_nok1(capsys, pkgs, ver):
 @pytest.mark.parametrize('pyver,pkgvers',
                          [('3.10', ['0.7.9', '0.8.0']),
                           ('3.11', ['0.5', '0.7.10', '0.8.1']),
-                          ('3.12', ['0.5', '0.7.11', '0.8.2']),
+                          ('3.12', ['0.5', '0.7.11', '0.8.2', '0.8.4']),
                           ('3.13', ['0.5', '0.6', '0.6.2', '0.7.0',
                                     '0.7.1', '0.7.3', '0.7.5',
-                                    '0.7.13', '0.8.3'])])
+                                    '0.7.13', '0.8.3', '0.8.5'])])
 def test_pyoks_ok2(capsys, pyver, pkgvers):
     """Test variation 2 OK cases for py_oks."""
     with open(file='test/test_pypkg_recdep/elt_page.pkl', mode='rb') as file:

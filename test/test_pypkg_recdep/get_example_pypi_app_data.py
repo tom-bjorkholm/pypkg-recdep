@@ -19,7 +19,7 @@ def get_example_pypi_app_data(pkgname: str, version: Version,
                               fname_base: str, dirname: str):
     """Get test data from pypi on package and store to files."""
     with PyPISimple() as client:
-        page = client.get_project_page(pkgname, timeout=30)
+        page = client.get_project_page(pkgname, timeout=120.0)
         pkgs = sorted(page.packages,
                       key=lambda x: Version(x.version)
                       if x.version else Version('0'),
@@ -38,7 +38,7 @@ def get_example_pypi_app_data(pkgname: str, version: Version,
         if not pkg.has_metadata:
             print('No metadata for package:', pkgname, file=sys.stderr)
             sys.exit(1)
-        meta = client.get_package_metadata(pkg, timeout=30.0)
+        meta = client.get_package_metadata(pkg, timeout=120.0)
         raw, _ = parse_email(meta)
         pickle_to_file(dirname=dirname, fname_base=fname_base,
                        obj_name='page', obj=page)

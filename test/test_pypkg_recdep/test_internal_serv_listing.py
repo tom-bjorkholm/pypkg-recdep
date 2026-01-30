@@ -196,15 +196,15 @@ def test_load_example_pypi_list_data() -> None:
         'jaraco.itertools': 75,
         'mypy': 1784,
         'pip': 275,
-        'py-tes-estebanfs': 2,
         'pytesimal': 2,
         'pytesira': 22,
         'pyteslaapi': 12,
         'pyteslable': 6,
+        'pyteslamate': 2,
         'pytesmo': 320,
         'pytes-mock': 0,
         'Pytess': 2,
-        'pytessel': 315,
+        'pytessel': 346,
         'PyTesser': 0,
         'pytesser3': 2,
         'pytesseract': 32,
@@ -219,6 +219,7 @@ def test_load_example_pypi_list_data() -> None:
         'pytest': 347
     }
     assert len(example.project_pages) == len(expected_pkg_num.keys())
+    print(example.project_pages.keys())
     for project, expected_num in expected_pkg_num.items():
         assert project in example.project_pages
         assert len(example.project_pages[project].packages) == \

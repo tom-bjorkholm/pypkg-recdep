@@ -16,7 +16,7 @@ setup(
   install_requires=[
     'mformat >= 0.2.1',
     'pypi-simple >= 1.8.0',
-    'packaging >= 25.0',
+    'packaging >= 26.0',
     'argcomplete >= 3.6.3',
     'requests >= 2.32.3',
     'types-requests >= 2.32.4.20250913',
