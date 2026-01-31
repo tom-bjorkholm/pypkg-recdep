@@ -15,7 +15,7 @@ from test_find_pypi_deps2 import MockClient1, LookupWhat, \
     create_test_pkg_spec
 from pypkg_recdep.print_deps import print_fulfilling_pkg, \
     print_one_pkg_short, print_one_pkg, print_purl, print_deps, \
-    print_rec_deps
+    print_rec_deps, OutputSpec
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo, Pkgs
 from pypkg_recdep.exclude import ExcludeInfo
 
@@ -228,8 +228,10 @@ def test_print_deps_ok1(capsys):
     exclude = ExcludeInfo(txt='excluded', csv_filename=None)
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=None, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -238,6 +240,38 @@ def test_print_deps_ok1(capsys):
         assert 'dep1' in content
         assert 'dep2' in content
         assert '(End of document.)' in content
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert '' == err
+
+
+def test_print_deps_ok1html(capsys):
+    """Test OK case of print_deps."""
+    main_pkg = create_test_pkg(
+        name='main-pkg', version='1.0.0',
+        dependencies=['dep1>=1.0', 'dep2'])
+    dep1 = create_test_pkg(name='dep1', version='1.0.0')
+    dep2 = create_test_pkg(name='dep2', version='2.0.0')
+    deps: Pkgs = {
+        PkgKey('main-pkg', '1.0.0'): main_pkg,
+        PkgKey('dep1', '1.0.0'): dep1,
+        PkgKey('dep2', '2.0.0'): dep2
+    }
+    exclude = ExcludeInfo(txt='excluded', csv_filename=None)
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.html'
+        outspec = OutputSpec(outfileformat='html', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
+        assert ret == 0
+        with open(outfile, 'r', encoding='utf8') as file:
+            content = file.read()
+        assert '<h1>\nPackage dependency information for main-pkg</h1>' in content
+        assert '<h2>\nPrimary package: main-pkg</h2>' in content
+        assert 'dep1' in content
+        assert 'dep2' in content
+        assert '<p>\n(End of document.)</p>' in content
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -255,8 +289,10 @@ def test_print_deps_with_purls(capsys):
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'
         purls_file = dirname + '/purls.txt'
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=purls_file, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=purls_file)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(purls_file, 'r', encoding='utf8') as file:
             purl_content = file.read()
@@ -266,7 +302,7 @@ def test_print_deps_with_purls(capsys):
     assert '' == out
 
 
-def test_print_deps_with_exclusions(capsys):
+def test_print_deps_with_exclusions(capsys):  # pylint: disable=too-many-locals # noqa: E501
     """Test print_deps with excluded packages."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0',
                                dependencies=['dep1', 'excluded-pkg'])
@@ -286,8 +322,10 @@ def test_print_deps_with_exclusions(capsys):
         exclude = ExcludeInfo(txt='in standard library',
                               csv_filename=csv_file)
         outfile = dirname + '/output.md'
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=None, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -322,9 +360,11 @@ def test_print_rec_deps_with_mock(capsys, monkeypatch):
     exclude = ExcludeInfo(txt='excluded', csv_filename=None)
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
         ret = print_rec_deps(app_name='test-app', metadata_max='2.4',
-                             python_ver='3.13', outfilename=outfile,
-                             purls=None, exclude=exclude)
+                             python_ver='3.13', outputspec=outspec,
+                             exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -349,9 +389,11 @@ def test_print_rec_deps_with_mockclient1(capsys, monkeypatch):
     exclude = ExcludeInfo(txt='excluded', csv_filename=None)
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
         ret = print_rec_deps(app_name='test-pkg', metadata_max='2.4',
-                             python_ver='3.13', outfilename=outfile,
-                             purls=None, exclude=exclude)
+                             python_ver='3.13', outputspec=outspec,
+                             exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -381,8 +423,10 @@ def test_print_deps_only_excluded(capsys):
         exclude = ExcludeInfo(txt='in standard library',
                               csv_filename=csv_file)
         outfile = dirname + '/output.md'
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=None, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -486,8 +530,10 @@ def test_print_deps_only_main_pkg(capsys):
             f.write('dep1,1.0.0\n')
         exclude = ExcludeInfo(txt='excluded', csv_filename=csv_file)
         outfile = dirname + '/output.md'
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=None, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
@@ -516,8 +562,10 @@ def test_print_deps_with_existing_purls_file(capsys):
         # Create existing purls file
         with open(purls_file, 'w', encoding='utf8') as f:
             f.write('pkg:pypi/existing-pkg@1.0.0\n')
-        ret = print_deps(deps=deepcopy(deps), outfilename=outfile,
-                         purls=purls_file, exclude=exclude)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=purls_file)
+        ret = print_deps(deps=deepcopy(deps), outputspec=outspec,
+                         exclude=exclude)
         assert ret == 0
         with open(purls_file, 'r', encoding='utf8') as file:
             purl_content = file.read()

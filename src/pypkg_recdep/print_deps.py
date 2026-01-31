@@ -4,7 +4,7 @@
 # Copyright (c) 2025 Tom Björkholm
 # MIT License
 
-from typing import TextIO, Optional
+from typing import TextIO, Optional, NamedTuple
 from os.path import isfile as os_path_isfile
 from packaging.requirements import Requirement
 from mformat.factory import create_mf
@@ -113,8 +113,17 @@ def print_purl(file: TextIO, pkg: PkgKey) -> None:
     print(txt, file=file)
 
 
-def print_deps(deps: Pkgs, outfilename: str,
-               purls: Optional[str], exclude: ExcludeInfo) -> int:
+class OutputSpec(NamedTuple):
+    """Specification for output."""
+
+    outfileformat: str
+    outfilename: str
+    url_as_text: bool
+    purlfilename: Optional[str]
+
+
+def print_deps(deps: Pkgs, outputspec: OutputSpec,
+               exclude: ExcludeInfo) -> int:
     """Print app dependencies that have been found.
 
     Create a markdown file and print to it a description of all the
@@ -122,14 +131,15 @@ def print_deps(deps: Pkgs, outfilename: str,
     The printout also includes information on the dependency chains,
     license texts etc.
     @param deps The complete information on dependencies to print.
-    @param outfilename The name of the output (markdown) file to create.
-    @param purls An optional file name of a file to write package urls to.
+    @param outputspec The specification for outputing the results.
     @param exclude Information on what packages shall not be fully printed.
     """
     mainpkg, maininfo = list(deps.items())[0]
     kept, excluded = exclude.split_in_keep_and_exclude(pkgs=deps)
     sorted_kept_keys = sorted(list(kept.keys()))
-    with create_mf(format_name='md', file_name=outfilename) as mf:
+    with create_mf(format_name=outputspec.outfileformat,
+                   file_name=outputspec.outfilename,
+                   url_as_text=outputspec.url_as_text) as mf:
         mf.start_heading(text='Package dependency information for',
                          level=1)
         mf.add_text(mainpkg.name)
@@ -158,26 +168,25 @@ def print_deps(deps: Pkgs, outfilename: str,
                 print_one_pkg(mformat=mf, pkg=pkg, data=kept[pkg],
                               mainpkg=False, all_deps=deps)
         mf.start_paragraph('(End of document.)')
-    if purls:
-        if os_path_isfile(purls):
-            print(f'File {purls} exists. Appending to it.')
-        with open(file=purls, mode='a', encoding='utf8') as file:
+    if outputspec.purlfilename:
+        if os_path_isfile(outputspec.purlfilename):
+            print(f'File {outputspec.purlfilename} exists. Appending to it.')
+        with open(file=outputspec.purlfilename, mode='a',
+                  encoding='utf8') as file:
             for pkg in sorted_kept_keys:
                 print_purl(file=file, pkg=pkg)
     return 0
 
 
-def print_rec_deps(app_name: str,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                   metadata_max: str, python_ver: str, outfilename: str,
-                   purls: Optional[str], exclude: ExcludeInfo) -> int:
+def print_rec_deps(app_name: str, metadata_max: str, python_ver: str,
+                   outputspec: OutputSpec, exclude: ExcludeInfo) -> int:
     """Find recursively dependencies and print them.
 
     Recursively find all dependencies of a package at PyPI.org and print them.
     @param app_name The name of the main package to look for dependencies for.
     @param metadata_max The maximum allowed metadata version for any package.
     @param python_ver The python version that shall be able to run packages.
-    @param outfilename The name of the output markdown file to create.
-    @param purls Optional name of an output file with package urls.
+    @param outputspec The specification for outputing the results.
     @param exclude Information on what packages to exclude full info for.
     """
     deps = resolve_all_dependencies(
@@ -185,5 +194,4 @@ def print_rec_deps(app_name: str,  # pylint: disable=too-many-arguments,too-many
         python_version=python_ver,
         max_metadata_version=metadata_max
     )
-    return print_deps(deps=deps, outfilename=outfilename,
-                      purls=purls, exclude=exclude)
+    return print_deps(deps=deps, outputspec=outputspec, exclude=exclude)

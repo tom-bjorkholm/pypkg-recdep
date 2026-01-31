@@ -12,8 +12,9 @@ import sys
 import os
 import argparse
 import argcomplete
+from mformat.factory import list_registered_mf
 from pypkg_recdep.list_ado_content import list_ado_content, UrlInfo
-from pypkg_recdep.print_deps import print_rec_deps
+from pypkg_recdep.print_deps import print_rec_deps, OutputSpec
 from pypkg_recdep.exclude import ExcludeInfo
 from pypkg_recdep.internal_server_listing import list_in_internal_server
 
@@ -61,15 +62,18 @@ def print_deps_func(args: argparse.Namespace) -> int:
     dependencies. (Conceptual recursion but implementation is not recursion.)
     @param args The namespace created by argparse.
     """
-    exclude = ExcludeInfo(txt='no exclues', csv_filename=None)
+    exclude = ExcludeInfo(txt='no excludes', csv_filename=None)
     if args.excludecsv:
         exclude = ExcludeInfo(txt=args.excludetext[0],
                               csv_filename=args.excludecsv[0])
+    outputspec = OutputSpec(outfileformat=args.format[0],
+                            outfilename=args.output[0],
+                            url_as_text=args.url_as_text,
+                            purlfilename=args.listpurls[0])
     return print_rec_deps(app_name=args.package[0],
                           metadata_max=args.metadatamax[0],
                           python_ver=args.pythonversion[0],
-                          outfilename=args.output[0],
-                          purls=args.listpurls[0],
+                          outputspec=outputspec,
                           exclude=exclude)
 
 
@@ -175,6 +179,26 @@ def add_print_deps_flags(parser: argparse.ArgumentParser) -> None:
                         help='Text to include in report with reason for ' +
                         'excluding packages with ---excludecsv. ' +
                         defcsvtxt)
+    possible_formats: list[str] = list_registered_mf()
+    parser.add_argument('-f', '--format', type=str, nargs=1,
+                        default=['md'], choices=possible_formats,
+                        required=False,
+                        help='Format of output file. ' +
+                        'Possible values: ' + ', '.join(possible_formats))
+    parser.add_argument('-u', '--url-as-text', action='store_true',
+                        default=False, required=False,
+                        help='Print URLs as text instead of links.')
+    parser.add_argument('-o', '--output', nargs=1,
+                        default=['dependencies'],
+                        type=str, help='Name of output file. ' +
+                        '(Default: dependencies with extension ' +
+                        'based on format).')
+    parser.add_argument('-l', '--listpurls', nargs=1,
+                        default=[None],
+                        type=str, help='Name of file with list of packages ' +
+                        'to download in purl format ' +
+                        'https://github.com/package-url/purl-spec#purl ' +
+                        '(Default: None).')
 
 
 def add_print_deps_subcmd(subparsers: SubParseAct) -> None:
@@ -187,19 +211,18 @@ def add_print_deps_subcmd(subparsers: SubParseAct) -> None:
     """
     desc = 'Print all recursive dependencies of a python package.'
     epi = 'Useful to figure out which packages to copy.'
+    if 'docx' not in list_registered_mf():
+        pipcmd = 'pip3'
+        if sys.platform.lower().startswith('win') \
+           or sys.platform.lower().startswith('nt'):  # pragma: no cover
+            pipcmd = 'pip'
+        epi += ' \nBy installing mformat-ext (see '
+        epi += 'https://pypi.org/project/mformat-ext/ ) '
+        epi += 'you get additional output formats like docx '
+        epi += f'({pipcmd} install --upgrade mformat-ext).'
     parser = subparsers.add_parser('printdeps', help=desc,
                                    epilog=epi,
                                    description=desc)
-    parser.add_argument('-o', '--output', nargs=1,
-                        default=['dependencies.md'],
-                        type=str, help='Name of output markdown file. ' +
-                        '(Default: dependencies.md).')
-    parser.add_argument('-l', '--listpurls', nargs=1,
-                        default=[None],
-                        type=str, help='Name of file with list of packages ' +
-                        'to download in purl format ' +
-                        'https://github.com/package-url/purl-spec#purl ' +
-                        '(Default: None).')
     add_print_deps_flags(parser=parser)
     parser.set_defaults(func=print_deps_func)
 

@@ -10,6 +10,7 @@ import os
 import re
 from tempfile import TemporaryDirectory
 import pytest
+from pypkg_recdep.print_deps import OutputSpec
 from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd, get_def_domain
 from pypkg_recdep.list_ado_content import UrlInfo
 from pypkg_recdep.exclude import ExcludeInfo
@@ -42,9 +43,11 @@ from pypkg_recdep.exclude import ExcludeInfo
                             r'-t.*--excludetext',
                             r'Text to include in report',
                             r'-o.*--output',
-                            r'Name of output markdown file',
+                            r'Name of output file',
                             r'-l.*--listpurls',
-                            r'Name of file with list of packages']),
+                            r'Name of file with list of packages',
+                            'Format of output file. Possible values',
+                            'Print URLs as text instead of links.']),
                           (['listado', '--help'],
                            [r'usage:.*pypkg_recdep listado',
                             r'List python packages in Azure Dev Ops',
@@ -135,14 +138,16 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
             'max_metadata_version': max_metadata_version})
         return {}
 
-    def mock_print_deps(deps, outfilename: str, purls: Optional[str],
+    def mock_print_deps(deps, outputspec: OutputSpec,
                         exclude: ExcludeInfo):
         """Mock print_deps."""
         # Suppress unused argument warning
         _ = deps
         call_log.setdefault('print_deps', []).append({
-            'outfilename': outfilename,
-            'purls': purls,
+            'outfilename': outputspec.outfilename,
+            'purls': outputspec.purlfilename,
+            'outfileformat': outputspec.outfileformat,
+            'url_as_text': outputspec.url_as_text,
             'exclude_txt': exclude.txt,
             'exclude_csv': exclude.csv_filename
             if exclude.csv_filename != 'None' else None})
@@ -254,8 +259,24 @@ def verify_function_calls(call_log: dict[str, list[dict]],
                                'max_metadata_version': 'check_default'},
                             'print_deps': {
                                'outfilename': 'out.md',
+                               'outfileformat': 'md',
+                               'url_as_text': False,
                                'purls': None,
-                               'exclude_txt': 'no exclues',
+                               'exclude_txt': 'no excludes',
+                               'exclude_csv': None}}),
+                          (['printdeps', '--package', 'mypkg',
+                            '--output', 'out', '-f', 'html', '-u',
+                            '-l', 'purls.txt'],
+                           {'resolve_all_dependencies': {
+                               'root_package': 'mypkg',
+                               'python_version': 'check_default',
+                               'max_metadata_version': 'check_default'},
+                            'print_deps': {
+                               'outfilename': 'out',
+                               'outfileformat': 'html',
+                               'url_as_text': True,
+                               'purls': 'purls.txt',
+                               'exclude_txt': 'no excludes',
                                'exclude_csv': None}}),
                           (['printdeps', '-p', 'testpkg', '-m', '2.1',
                             '-y', '3.12', '-o', 'test.md', '-l', 'purls.txt',
@@ -448,7 +469,7 @@ def test_get_def_domain_insert_local(monkeypatch, fqdn, expected):
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,
-                               'exclude_txt': 'no exclues',
+                               'exclude_txt': 'no excludes',
                                'exclude_csv': None}}),
                           (['python', 'listado', '--output', 'ado.csv'],
                            {'list_ado_content': {
@@ -498,7 +519,7 @@ def test_python_invocation(monkeypatch, capsys, args, expected_calls):
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,
-                               'exclude_txt': 'no exclues',
+                               'exclude_txt': 'no excludes',
                                'exclude_csv': None}}),
                           (['-m', 'listinternal', '--output', 'internal.csv'],
                            {'list_in_internal_server': {
@@ -546,7 +567,7 @@ def test_module_invocation(monkeypatch, capsys, args, expected_calls):
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,
-                               'exclude_txt': 'no exclues',
+                               'exclude_txt': 'no excludes',
                                'exclude_csv': None}}),
                           (['pypkg_recdep_cmd.py', 'listado',
                             '--output', 'ado.csv'],
