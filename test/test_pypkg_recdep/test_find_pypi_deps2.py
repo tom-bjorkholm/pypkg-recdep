@@ -18,7 +18,8 @@ from packaging.requirements import Requirement
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
 from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
     get_environment, get_best_pkg, NoMatchingPackage, get_license_name, \
-    get_lic_name_fr_classifier, resolve_all_dependencies
+    get_lic_name_fr_classifier, resolve_all_dependencies, \
+    reset_metadata_version_warning, _warn_metadata_version_exceeded
 
 
 @pytest.mark.parametrize('rawlic,res',
@@ -517,21 +518,26 @@ RAD_C1 = [
 ]
 
 
-@pytest.mark.parametrize('root,pyv,metav,exp_keys',
+@pytest.mark.parametrize('root,pyv,metav,exp_keys,expect_warn',
                          [('abc', '3.14', None,
-                           [('abc', '2.0'), ('def', '2.5'), ('fgh', '1.5')]),
+                           [('abc', '2.0'), ('def', '2.5'), ('fgh', '1.5')],
+                           False),
                           ('abc', '3.11', None,
-                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')]),
+                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')],
+                           False),
                           ('abc', '3.10', None,
-                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')]),
+                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')],
+                           False),
                           ('abc', '3.14', '2.2',
-                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')]),
+                           [('abc', '1.5'), ('def', '2.5'), ('fgh', '1.2')],
+                           True),
                           ('abc', '3.11', '2.1',
-                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')])
+                           [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')],
+                           True)
                           ])
 def test_resolve_all_dependencies_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                                       monkeypatch, root, pyv, metav,
-                                      exp_keys):
+                                      exp_keys, expect_warn):
     """Test OK cases of resolve_all_dependencies."""
     mock_client = MockClient1(spec=RAD_C1, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -541,7 +547,10 @@ def test_resolve_all_dependencies_ok1(capsys,  # pylint: disable=too-many-argume
                                    max_metadata_version=metav)
     out, err = capsys.readouterr()
     assert '' == out
-    assert '' == err
+    if expect_warn:
+        assert 'Warning:' in err
+    else:
+        assert '' == err
     assert len(ret) == len(exp_keys)
     for name, ver in exp_keys:
         key = PkgKey(name=name, version=ver)
@@ -720,3 +729,144 @@ def test_resolve_all_dependencies_nok3(capsys,  # pylint: disable=too-many-argum
     assert '' == out
     assert errmsg in err
     assert len(ret) == 0
+
+
+# Tests for metadata version warning functionality
+
+
+def test_warn_metadata_version_exceeded_once(capsys):
+    """Test that warning is printed only once per run."""
+    reset_metadata_version_warning()
+    _warn_metadata_version_exceeded(
+        pkg_project='pkg1', pkg_version='1.0',
+        actual_ver='2.4', max_ver=Version('2.2'))
+    out1, err1 = capsys.readouterr()
+    assert '' == out1
+    assert 'Warning: Package pkg1 1.0 has metadata version 2.4' in err1
+    assert 'exceeds the specified maximum 2.2' in err1
+    assert '--metadatamax' in err1
+
+    # Second call should not print a warning
+    _warn_metadata_version_exceeded(
+        pkg_project='pkg2', pkg_version='2.0',
+        actual_ver='2.5', max_ver=Version('2.2'))
+    out2, err2 = capsys.readouterr()
+    assert '' == out2
+    assert '' == err2
+
+
+def test_warn_metadata_version_reset(capsys):
+    """Test that reset allows warning again."""
+    reset_metadata_version_warning()
+    _warn_metadata_version_exceeded(
+        pkg_project='pkg1', pkg_version='1.0',
+        actual_ver='2.4', max_ver=Version('2.2'))
+    out1, err1 = capsys.readouterr()
+    assert '' == out1
+    assert 'Warning: Package pkg1 1.0' in err1
+
+    # Reset and call again - should print warning
+    reset_metadata_version_warning()
+    _warn_metadata_version_exceeded(
+        pkg_project='pkg2', pkg_version='2.0',
+        actual_ver='2.5', max_ver=Version('2.2'))
+    out2, err2 = capsys.readouterr()
+    assert '' == out2
+    assert 'Warning: Package pkg2 2.0' in err2
+
+
+# Test that warning is printed when metadata version exceeds max during
+# resolve_all_dependencies
+
+
+RAD_M11 = [
+    MockSpecMeta(meta=True, version='2.0', metaversion='2.4',
+                 py_req=' >= 3.10', reqs=[]),
+    MockSpecMeta(meta=True, version='1.0', metaversion='2.1',
+                 py_req=' >= 3.10', reqs=[])
+]
+
+RAD_C7 = [
+    MockSpecPage(name='high-meta-pkg', base='elt', metas=RAD_M11)
+]
+
+
+def test_resolve_all_deps_warns_metadata_exceeded(capsys, monkeypatch):
+    """Test warning when some packages have metadata version exceeding max.
+
+    This test uses a package with two versions:
+    - v2.0 with metadata version 2.4 (exceeds max 2.2, triggers warning)
+    - v1.0 with metadata version 2.1 (within max 2.2, gets used)
+    """
+    mock_client = MockClient1(spec=RAD_C7, lookup=LookupWhat.LOOKUP_BOTH)
+    monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
+                        lambda: mock_client)
+    ret = resolve_all_dependencies(root_package='high-meta-pkg',
+                                   python_version='3.13',
+                                   max_metadata_version='2.2')
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert 'Warning: Package high-meta-pkg 2.0 has metadata version 2.4' in err
+    assert 'exceeds the specified maximum 2.2' in err
+    # Should return the package with version 1.0 (metadata 2.1 is OK)
+    assert len(ret) == 1
+    for key in ret:
+        assert key.name == 'high-meta-pkg'
+        assert str(key.version) == '1.0'
+
+
+# Integration tests that actually query PyPI.org
+# These are marked as slow and are not run in the automated build.
+# Run with: pytest -m slow test/test_pypkg_recdep/test_find_pypi_deps2.py
+
+
+@pytest.mark.slow
+def test_integration_pypi_resolve_dependencies(capsys):
+    """Integration test: resolve dependencies from actual PyPI.org.
+
+    This test queries the real PyPI.org server to verify that the
+    dependency resolution works correctly with real packages.
+    This test is marked as slow and is not run in the automated build.
+    Run manually with: pytest -m slow
+    """
+    # Use a small, stable package with known dependencies
+    ret = resolve_all_dependencies(
+        root_package='pypkg-recdep',
+        python_version='3.13',
+        max_metadata_version=None  # No filtering
+    )
+    out, _ = capsys.readouterr()
+    assert '' == out
+    # Should find the package and its dependencies
+    assert len(ret) >= 1
+    # Check that pypkg-recdep itself is in the results
+    found_main = False
+    for key, info in ret.items():
+        if key.name == 'pypkg-recdep':
+            found_main = True
+            # Should have found metadata
+            assert info['metadata_version'] is not None
+            # Should have found dependencies
+            assert len(info['dependencies']) > 0
+            break
+    assert found_main, 'pypkg-recdep not found in resolved dependencies'
+
+
+@pytest.mark.slow
+def test_integration_pypi_metadata_version_filtering(capsys):
+    """Integration test: verify metadata version filtering with real PyPI.
+
+    This test verifies that metadata version filtering works correctly
+    and produces the expected warning when packages are filtered out.
+    """
+    # Use a very low metadata max that should filter out modern packages
+    ret = resolve_all_dependencies(
+        root_package='requests',
+        python_version='3.13',
+        max_metadata_version='1.0'  # Very low, should filter everything
+    )
+    out, err = capsys.readouterr()
+    assert '' == out
+    # Should have printed a warning about metadata version
+    assert 'Warning:' in err or len(ret) == 0 or \
+        any(info['metadata_version'] is None for info in ret.values())

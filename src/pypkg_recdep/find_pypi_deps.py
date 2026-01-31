@@ -26,6 +26,45 @@ from pypkg_recdep.pkg_info import PkgInfo, PkgKey, Pkgs, Requirements, \
 
 T = TypeVar('T', str, tarfile.TarInfo)
 
+# Module-level flag to track if we've warned about metadata version
+# exceeding max. Using underscore prefix for internal module state.
+# Not a constant (mutable), so lowercase per PEP 8.
+_warned_metadata_version: bool = False  # pylint: disable=invalid-name
+
+
+def reset_metadata_version_warning() -> None:
+    """Reset the metadata version warning flag.
+
+    This should be called at the start of each command run to allow
+    warning again for the next run.
+    """
+    global _warned_metadata_version  # pylint: disable=global-statement
+    _warned_metadata_version = False
+
+
+def _warn_metadata_version_exceeded(pkg_project: str, pkg_version: str,
+                                    actual_ver: str,
+                                    max_ver: Version) -> None:
+    """Warn about metadata version exceeding max (only once per run).
+
+    Print a warning message to stderr when a package's metadata version
+    exceeds the specified maximum. This warning is only printed once per
+    command run to avoid flooding the output.
+    @param pkg_project The name of the package.
+    @param pkg_version The version of the package.
+    @param actual_ver The actual metadata version found.
+    @param max_ver The maximum allowed metadata version.
+    """
+    global _warned_metadata_version  # pylint: disable=global-statement
+    if not _warned_metadata_version:
+        _warned_metadata_version = True
+        print(f'Warning: Package {pkg_project} {pkg_version} has metadata '
+              f'version {actual_ver} which exceeds the specified maximum '
+              f'{str(max_ver)}.\n'
+              '    Consider using --metadatamax with a higher value or '
+              'no value to disable filtering.',
+              file=sys.stderr)
+
 
 def _fname_to_str(file_in_tar: T) -> str:
     """Get file name as str."""
@@ -302,6 +341,11 @@ def meta_ok(client: PyPISimple, pkgs: list[DistributionPackage],
                 else:
                     if Version(ver) <= metaversion:
                         return (pkg, meta)
+                    _warn_metadata_version_exceeded(
+                        pkg_project=pkg.project or 'unknown',
+                        pkg_version=pkg.version or 'unknown',
+                        actual_ver=ver,
+                        max_ver=metaversion)
             except (NoMetadataError, HTTPError, NoDigestsError,
                     DigestMismatchError) as exc:
                 print('Failed to get metadata for ' +
@@ -445,6 +489,7 @@ def resolve_all_dependencies(root_package: str,  # pylint: disable=too-many-loca
     @param max_metadata_version Use only packages that has this or
                                 lower metadata version.
     """
+    reset_metadata_version_warning()
     ret: Pkgs = {}
     visited: Requirements = []
     queue: Requirements = [Requirement(canonicalize_name(root_package))]

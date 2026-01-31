@@ -22,7 +22,8 @@ from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     select_default_lic_file, T, select_lic_file_names, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
     get_license_text, get_environment, get_requirements, \
-    find_fulfill_req, py_oks, NoMatchingPackage, meta_ok
+    find_fulfill_req, py_oks, NoMatchingPackage, meta_ok, \
+    reset_metadata_version_warning
 
 
 class AStr(str):
@@ -721,7 +722,8 @@ NO_META_ERROR = NoMetadataError(filename='a.txt', url='http://a.com')
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', '2.4', None),
                             MockMetaSpec('elt', '2.2', None)], '2.3',
-                           None, 'Metadata-Version: 2.2'),
+                           ['Warning:', 'exceeds the specified maximum'],
+                           'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', '2.4', None),
                             MockMetaSpec('elt', '2.2', None)], None,
@@ -733,7 +735,8 @@ NO_META_ERROR = NoMetadataError(filename='a.txt', url='http://a.com')
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, None),
                             MockMetaSpec('elt', '2.4', None)], '2.3',
-                           None, None),
+                           ['Warning:', 'exceeds the specified maximum'],
+                           None),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, DIG_MIS_ERROR),
                             MockMetaSpec('elt', '2.2', None)], '2.3',
@@ -762,6 +765,7 @@ def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-posi
                      mspecs: list[MockMetaSpec], mver: Optional[Version],
                      msgs: Optional[list[str]], retstart: Optional[str]):
     """Test first OK cases of meta_ok."""
+    reset_metadata_version_warning()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
     metaversion = None if mver is None else Version(mver)
@@ -786,7 +790,8 @@ def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-posi
 def test_meta_ok_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                       has_metas: list[bool], page_pkl: str,
                       mspecs: list[MockMetaSpec], mver: Optional[Version]):
-    """Test first OK cases of meta_ok."""
+    """Test first not OK cases of meta_ok."""
+    reset_metadata_version_warning()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
     metaversion = None if mver is None else Version(mver)
@@ -795,4 +800,5 @@ def test_meta_ok_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-pos
     out, err = capsys.readouterr()
     assert 'No packages of excel_list_transform have OK' in str(exc)
     assert '' == out
-    assert '' == err
+    # Warning about metadata version exceeding max should be printed
+    assert 'Warning:' in err

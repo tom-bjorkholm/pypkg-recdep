@@ -256,7 +256,7 @@ def verify_function_calls(call_log: dict[str, list[dict]],
                            {'resolve_all_dependencies': {
                                'root_package': 'mypkg',
                                'python_version': 'check_default',
-                               'max_metadata_version': 'check_default'},
+                               'max_metadata_version': None},
                             'print_deps': {
                                'outfilename': 'out.md',
                                'outfileformat': 'md',
@@ -270,7 +270,7 @@ def verify_function_calls(call_log: dict[str, list[dict]],
                            {'resolve_all_dependencies': {
                                'root_package': 'mypkg',
                                'python_version': 'check_default',
-                               'max_metadata_version': 'check_default'},
+                               'max_metadata_version': None},
                             'print_deps': {
                                'outfilename': 'out',
                                'outfileformat': 'html',
@@ -465,7 +465,7 @@ def test_get_def_domain_insert_local(monkeypatch, fqdn, expected):
                            {'resolve_all_dependencies': {
                                'root_package': 'mypkg',
                                'python_version': 'check_default',
-                               'max_metadata_version': 'check_default'},
+                               'max_metadata_version': None},
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,
@@ -515,7 +515,7 @@ def test_python_invocation(monkeypatch, capsys, args, expected_calls):
                            {'resolve_all_dependencies': {
                                'root_package': 'mypkg',
                                'python_version': 'check_default',
-                               'max_metadata_version': 'check_default'},
+                               'max_metadata_version': None},
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,
@@ -563,7 +563,7 @@ def test_module_invocation(monkeypatch, capsys, args, expected_calls):
                            {'resolve_all_dependencies': {
                                'root_package': 'mypkg',
                                'python_version': 'check_default',
-                               'max_metadata_version': 'check_default'},
+                               'max_metadata_version': None},
                             'print_deps': {
                                'outfilename': 'out.md',
                                'purls': None,

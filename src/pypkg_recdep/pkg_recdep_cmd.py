@@ -125,7 +125,7 @@ def get_defaultvals(env_var: str) -> tuple[Optional[str], str]:
               'ADO_PROJECT': None,
               'ADO_TYPES': 'wheel',
               'PATFILE': None,
-              'METADATAMAX': '2.2',
+              'METADATAMAX': None,
               'EXCLUDE_TEXT': 'already in local server',
               'EXCLUDE_CSV': None}
     if defval is None:
@@ -162,7 +162,7 @@ def add_print_deps_flags(parser: argparse.ArgumentParser) -> None:
     defmeta, defmetatxt = get_defaultvals('METADATAMAX')
     parser.add_argument('-m', '--metadatamax',
                         type=str, nargs=1, default=[defmeta],
-                        help='Highest allowed metadata version' + defmetatxt)
+                        help='Highest allowed metadata version. ' + defmetatxt)
     defpyt, defpyttxt = get_defaultvals('PYTHON_VER')
     parser.add_argument('-y', '--pythonversion', type=str, nargs=1,
                         default=[defpyt],

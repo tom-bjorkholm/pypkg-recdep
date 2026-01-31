@@ -55,6 +55,20 @@ The "testing" includes pytest, pylint, flake8 and mypy.
 
 After running `doBuild.zsh` you can open `reports/index.htm` to see all test reports.
 
+### Integration tests towards PyPI.org
+
+There are integration tests that query the real PyPI.org server. These tests are marked with `@pytest.mark.slow` and are not run in the automated build (because they require network access and are slow).
+
+To run the integration tests manually:
+
+```sh
+source ./venv/bin/activate
+pytest --slow test/test_pypkg_recdep/test_find_pypi_deps2.py -v -k "integration"
+deactivate
+```
+
+These tests verify that the dependency resolution works correctly with real packages on PyPI.org and can help detect changes in PyPI's API or metadata formats.
+
 After running `doBuild.zsh` you can do manual test of the built and installed application in the virtual environment `./venv`.
 
 ## Test summary
