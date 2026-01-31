@@ -134,6 +134,8 @@ def print_deps(deps: Pkgs, outputspec: OutputSpec,
     @param outputspec The specification for outputing the results.
     @param exclude Information on what packages shall not be fully printed.
     """
+    if not deps:
+        return 0
     mainpkg, maininfo = list(deps.items())[0]
     kept, excluded = exclude.split_in_keep_and_exclude(pkgs=deps)
     sorted_kept_keys = sorted(list(kept.keys()))

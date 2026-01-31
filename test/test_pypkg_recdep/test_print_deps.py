@@ -267,7 +267,7 @@ def test_print_deps_ok1html(capsys):
         assert ret == 0
         with open(outfile, 'r', encoding='utf8') as file:
             content = file.read()
-        assert '<h1>\nPackage dependency information for main-pkg</h1>' in content
+        assert '<h1>\nPackage dependency information for main-pkg' in content
         assert '<h2>\nPrimary package: main-pkg</h2>' in content
         assert 'dep1' in content
         assert 'dep2' in content

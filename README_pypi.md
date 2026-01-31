@@ -30,10 +30,17 @@ pip install --upgrade pypkg-recdep
 * It can also make a list of all packages available in an internal server using PyPI protocols hosting the internal package repository.
 * The lists of internally available packages can be used to as input when creating the list of all dependencies of a package on PyPI. Then the produced output differentiates between internally already available packages and packages that need to be processed to become available internally.
 
+## Output formats
+
+In version version 0.3 the only output file format for the dependency information was Markdown. Starting in version 0.4 several output file formats are supported.
+
+To limit the number of dependencies of pypkg-recdep (as you might want to install it in environment where each extra dependency causes extra work) it lists only mformat [https://pypi.org/project/mformat](https://pypi.org/project/mformat) as a dependency. This gives a limited number of output file formats (like Markdown and HTML). By installing mformat-ext [https://pypi.org/project/mformat-ext](https://pypi.org/project/mformat-ext) together with pypkg-recdep you will automatically get additional output formats (like Microsoft Word docx and LibreOffice Open Document Text odt)-
+
 ## Version history
 
 | Version | Date        | Python version  | Description                         |
 |---------|-------------|-----------------|-------------------------------------|
+| 0.4     | 01 Feb 2026 | 3.12 or newer   | Additional output formats           |
 | 0.3     | 18 Dec 2025 | 3.12 or newer   | Fixed edge cases                    |
 | 0.2.1   | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
 | 0.1     | 15 Aug 2025 | 3.12 or newer   | First released version              |
@@ -96,7 +103,7 @@ or using the short version of the command line flags on Microsoft Windows:
 File purls.txt exists. Appending to it.
 ````
 
-As you notice you will need to let the program create a separate markdown file with information for each top-level package you want information on. This markdown file contains information on that package and on all packages it depends on, and on all packages the dependencies depend on, and so on.
+As you notice you will need to let the program create a separate output file with information for each top-level package you want information on. This output file contains information on that package and on all packages it depends on, and on all packages the dependencies depend on, and so on.
 However, you can use the same file name of the list of PURLs for several top level packages.
 
 ### Knowing what is on your server
@@ -189,7 +196,7 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 
 ## Test summary
 
-* Test result: 438 passed in 5s
+* Test result: 440 passed in 5s
 * No Flake8 warnings.
 * No mypy errors found.
-* 0.3.1 built and tested using python version: Python 3.14.2
+* 0.4 built and tested using python version: Python 3.14.2
