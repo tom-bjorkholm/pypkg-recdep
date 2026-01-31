@@ -23,7 +23,7 @@ from pypkg_recdep.find_pypi_deps import select_given_lic_file, \
     get_lic_text_zip, get_lic_text_tar, _fname_to_str, \
     get_license_text, get_environment, get_requirements, \
     find_fulfill_req, py_oks, NoMatchingPackage, meta_ok, \
-    reset_metadata_version_warning
+    reset_warnings, _fix_invalid_version_specifier
 
 
 class AStr(str):
@@ -583,6 +583,93 @@ def test_pyoks_nok1(capsys, pkgs, ver):
     assert '' == err
 
 
+@pytest.mark.parametrize('spec,expected',
+                         [('>=3.5.*', '>=3.5'),
+                          ('<=3.5.*', '<=3.5'),
+                          ('>3.5.*', '>3.5'),
+                          ('<3.5.*', '<3.5'),
+                          ('>=3.5.*, <4.*', '>=3.5, <4'),
+                          ('>=3.5.1.*', '>=3.5.1'),
+                          ('==3.5.*', '==3.5.*'),  # Should NOT be changed
+                          ('!=3.5.*', '!=3.5.*'),  # Should NOT be changed
+                          ('>=3.5', '>=3.5'),  # No change needed
+                          ('>=3.5, <4.0', '>=3.5, <4.0')])  # No change needed
+def test_fix_invalid_version_specifier(capsys, spec, expected):
+    """Test _fix_invalid_version_specifier helper function."""
+    result = _fix_invalid_version_specifier(spec)
+    out, err = capsys.readouterr()
+    assert result == expected
+    assert '' == out
+    assert '' == err
+
+
+@pytest.mark.parametrize('pkgs,ver,exp_vers',
+                         [([('ab', '1.0', '>=3.5.*'),
+                            ('ab', '2.0', '>=3.10')],
+                           '3.13',
+                           ['1.0', '2.0']),
+                          ([('cd', '1.0', '>=3.5, <4.*')],
+                           '3.12',
+                           ['1.0'])])
+def test_pyoks_fixable_requires_python(capsys, pkgs, ver, exp_vers):
+    """Test py_oks with fixable requires_python (PEP 440 violations).
+
+    Some older packages have invalid version specifiers like '>=3.5.*'
+    which violate PEP 440 (the .* suffix only works with == or !=).
+    For >=, <=, >, < operators, >=3.5.* is equivalent to >=3.5.
+    The function should fix these and NOT print a warning.
+    """
+    reset_warnings()
+    dist_list: list[DistributionPackage] = []
+    for (pname, pver, pyreq) in deepcopy(pkgs):
+        dist_list.append(DistributionPackage(filename='fname', url='url',
+                                             project=pname, version=pver,
+                                             requires_python=pyreq,
+                                             package_type='whl', digests={},
+                                             has_sig=False))
+    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    out, err = capsys.readouterr()
+    assert '' == out
+    # Should NOT have printed a warning (the specifier was fixed)
+    assert '' == err
+    # Expected packages should be included
+    ret_vers = [pkg.version for pkg in ret]
+    for exp_ver in exp_vers:
+        assert exp_ver in ret_vers
+
+
+@pytest.mark.parametrize('pkgs,ver,exp_vers',
+                         [([('ab', '1.0', '>=3..5')],  # Double dot - invalid
+                           '3.13',
+                           ['1.0']),
+                          ([('cd', '1.0', '>=3.5, invalid')],  # Invalid part
+                           '3.13',
+                           ['1.0'])])
+def test_pyoks_truly_invalid_requires_python(capsys, pkgs, ver, exp_vers):
+    """Test py_oks with truly invalid requires_python.
+
+    For specifiers that cannot be fixed, include optimistically with warning.
+    """
+    reset_warnings()
+    dist_list: list[DistributionPackage] = []
+    for (pname, pver, pyreq) in deepcopy(pkgs):
+        dist_list.append(DistributionPackage(filename='fname', url='url',
+                                             project=pname, version=pver,
+                                             requires_python=pyreq,
+                                             package_type='whl', digests={},
+                                             has_sig=False))
+    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    out, err = capsys.readouterr()
+    assert '' == out
+    # Should have printed a warning about invalid requires_python
+    assert 'Warning:' in err
+    assert 'invalid requires_python' in err
+    # All packages should be included (optimistic handling)
+    ret_vers = [pkg.version for pkg in ret]
+    for exp_ver in exp_vers:
+        assert exp_ver in ret_vers
+
+
 @pytest.mark.parametrize('pyver,pkgvers',
                          [('3.10', ['0.7.9', '0.8.0']),
                           ('3.11', ['0.5', '0.7.10', '0.8.1']),
@@ -765,7 +852,7 @@ def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-posi
                      mspecs: list[MockMetaSpec], mver: Optional[Version],
                      msgs: Optional[list[str]], retstart: Optional[str]):
     """Test first OK cases of meta_ok."""
-    reset_metadata_version_warning()
+    reset_warnings()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
     metaversion = None if mver is None else Version(mver)
@@ -791,7 +878,7 @@ def test_meta_ok_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-pos
                       has_metas: list[bool], page_pkl: str,
                       mspecs: list[MockMetaSpec], mver: Optional[Version]):
     """Test first not OK cases of meta_ok."""
-    reset_metadata_version_warning()
+    reset_warnings()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
     metaversion = None if mver is None else Version(mver)

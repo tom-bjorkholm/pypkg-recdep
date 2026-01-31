@@ -19,7 +19,7 @@ from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
 from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
     get_environment, get_best_pkg, NoMatchingPackage, get_license_name, \
     get_lic_name_fr_classifier, resolve_all_dependencies, \
-    reset_metadata_version_warning, _warn_metadata_version_exceeded
+    reset_warnings, _warn_metadata_version_exceeded
 
 
 @pytest.mark.parametrize('rawlic,res',
@@ -428,15 +428,16 @@ def create_test_pkg_spec() -> list[MockSpecPage]:
     ]
 
 
-@pytest.mark.parametrize('cspec,req,pyv,metav,res',
-                         [(GBP_C1, 'abc >= 0.8', '3.14', None, GBP_1R1),
-                          (GBP_C1, 'abc >= 0.8', '3.11', None, GBP_1R2),
-                          (GBP_C1, 'abc >= 0.8', '3.9', None, GBP_1R3),
-                          (GBP_C1, 'abc >= 0.8', '3.14', '2.2', GBP_1R2)
+@pytest.mark.parametrize('cspec,req,pyv,metav,res,expect_warn',
+                         [(GBP_C1, 'abc >= 0.8', '3.14', None, GBP_1R1, False),
+                          (GBP_C1, 'abc >= 0.8', '3.11', None, GBP_1R2, False),
+                          (GBP_C1, 'abc >= 0.8', '3.9', None, GBP_1R3, False),
+                          (GBP_C1, 'abc >= 0.8', '3.14', '2.2', GBP_1R2, True)
                           ])
 def test_get_best_pkg_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                          cspec, req, pyv, metav, res):
+                          cspec, req, pyv, metav, res, expect_warn):
     """Test OK cases of get_best_pkg."""
+    reset_warnings()
     mock_client = MockClient1(spec=cspec, lookup=LookupWhat.LOOKUP_BOTH)
     env = get_environment(pyversion=Version(pyv))
     metaversion = Version(metav) if metav is not None else None
@@ -455,7 +456,10 @@ def test_get_best_pkg_ok1(capsys,  # pylint: disable=too-many-arguments,too-many
     else:
         assert ret['license_text'] is None or ret['license_text'] == ''
     assert '' == out
-    assert '' == err
+    if expect_warn:
+        assert 'Warning:' in err
+    else:
+        assert '' == err
 
 
 GBP_C1N = [
@@ -736,7 +740,7 @@ def test_resolve_all_dependencies_nok3(capsys,  # pylint: disable=too-many-argum
 
 def test_warn_metadata_version_exceeded_once(capsys):
     """Test that warning is printed only once per run."""
-    reset_metadata_version_warning()
+    reset_warnings()
     _warn_metadata_version_exceeded(
         pkg_project='pkg1', pkg_version='1.0',
         actual_ver='2.4', max_ver=Version('2.2'))
@@ -757,7 +761,7 @@ def test_warn_metadata_version_exceeded_once(capsys):
 
 def test_warn_metadata_version_reset(capsys):
     """Test that reset allows warning again."""
-    reset_metadata_version_warning()
+    reset_warnings()
     _warn_metadata_version_exceeded(
         pkg_project='pkg1', pkg_version='1.0',
         actual_ver='2.4', max_ver=Version('2.2'))
@@ -766,7 +770,7 @@ def test_warn_metadata_version_reset(capsys):
     assert 'Warning: Package pkg1 1.0' in err1
 
     # Reset and call again - should print warning
-    reset_metadata_version_warning()
+    reset_warnings()
     _warn_metadata_version_exceeded(
         pkg_project='pkg2', pkg_version='2.0',
         actual_ver='2.5', max_ver=Version('2.2'))

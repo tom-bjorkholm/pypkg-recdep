@@ -4,6 +4,7 @@
 # Copyright (c) 2025 Tom Björkholm
 # MIT License
 
+import re
 import sys
 from tempfile import TemporaryDirectory
 import zipfile
@@ -26,20 +27,23 @@ from pypkg_recdep.pkg_info import PkgInfo, PkgKey, Pkgs, Requirements, \
 
 T = TypeVar('T', str, tarfile.TarInfo)
 
-# Module-level flag to track if we've warned about metadata version
-# exceeding max. Using underscore prefix for internal module state.
-# Not a constant (mutable), so lowercase per PEP 8.
+# Module-level flags to track if we've warned about specific issues.
+# Using underscore prefix for internal module state.
+# Not constants (mutable), so lowercase per PEP 8.
 _warned_metadata_version: bool = False  # pylint: disable=invalid-name
+_warned_invalid_requires_python: bool = False  # pylint: disable=invalid-name
 
 
-def reset_metadata_version_warning() -> None:
-    """Reset the metadata version warning flag.
+def reset_warnings() -> None:
+    """Reset all warning flags.
 
     This should be called at the start of each command run to allow
     warning again for the next run.
     """
     global _warned_metadata_version  # pylint: disable=global-statement
+    global _warned_invalid_requires_python  # pylint: disable=global-statement
     _warned_metadata_version = False
+    _warned_invalid_requires_python = False
 
 
 def _warn_metadata_version_exceeded(pkg_project: str, pkg_version: str,
@@ -288,6 +292,44 @@ class NoMatchingPackage(KeyError):
     """No package matches requirement."""
 
 
+def _fix_invalid_version_specifier(spec: str) -> str:
+    """Fix common invalid version specifier patterns.
+
+    Some older packages have invalid version specifiers like '>=3.5.*'
+    which violate PEP 440. The .* suffix is only valid with == or !=
+    operators. For >=, <=, >, < operators, we can safely strip the .*
+    suffix since '>=3.5.*' is semantically equivalent to '>=3.5'.
+
+    @param spec The version specifier string (e.g., '>=3.5.*').
+    @return The fixed specifier string, or the original if no fix needed.
+    """
+    # Pattern matches operators other than == and != followed by version.*
+    # Handles comma-separated specifiers like ">=3.5.*, <4.*"
+    pattern = r'(>=|<=|>|<)(\s*)([0-9]+(?:\.[0-9]+)*)\.\*'
+    return re.sub(pattern, r'\1\2\3', spec)
+
+
+def _warn_invalid_requires_python(pkg_project: str, pkg_version: str,
+                                  requires_python: str) -> None:
+    """Warn about invalid requires_python (only once per run).
+
+    Print a warning message to stderr when a package has an invalid
+    requires_python specifier (violates PEP 440). This warning is only
+    printed once per command run to avoid flooding the output.
+    @param pkg_project The name of the package.
+    @param pkg_version The version of the package.
+    @param requires_python The invalid requires_python string.
+    """
+    global _warned_invalid_requires_python  # pylint: disable=global-statement
+    if not _warned_invalid_requires_python:
+        _warned_invalid_requires_python = True
+        print(f'Warning: Package {pkg_project} {pkg_version} has '
+              f'invalid requires_python: {requires_python}\n'
+              '    Including packages with invalid requires_python anyway '
+              '(cannot verify Python version compatibility).',
+              file=sys.stderr)
+
+
 def py_oks(pkgs: list[DistributionPackage],
            pyversion: Version) -> list[DistributionPackage]:
     """Filter out the packages that are OK for python version.
@@ -303,8 +345,27 @@ def py_oks(pkgs: list[DistributionPackage],
         if pkg.requires_python is None:
             ret.append(pkg)
             continue
-        req = Requirement('python ' + pkg.requires_python)
-        if req.specifier.contains(pyversion):
+        try:
+            # First try the specifier as-is
+            req = Requirement('python ' + pkg.requires_python)
+            if req.specifier.contains(pyversion):
+                ret.append(pkg)
+        except InvalidRequirement:
+            # Try fixing common invalid patterns (e.g., ">=3.5.*" -> ">=3.5")
+            fixed_spec = _fix_invalid_version_specifier(pkg.requires_python)
+            if fixed_spec != pkg.requires_python:
+                try:
+                    req = Requirement('python ' + fixed_spec)
+                    if req.specifier.contains(pyversion):
+                        ret.append(pkg)
+                    continue
+                except InvalidRequirement:
+                    pass  # Fall through to warning
+            # Truly invalid specifier - include optimistically with warning
+            _warn_invalid_requires_python(
+                pkg_project=pkg.project or 'unknown',
+                pkg_version=pkg.version or 'unknown',
+                requires_python=pkg.requires_python)
             ret.append(pkg)
     if not ret:
         excstr = f'No package of {pkgs[0].project} that can run on ' + \
@@ -489,7 +550,7 @@ def resolve_all_dependencies(root_package: str,  # pylint: disable=too-many-loca
     @param max_metadata_version Use only packages that has this or
                                 lower metadata version.
     """
-    reset_metadata_version_warning()
+    reset_warnings()
     ret: Pkgs = {}
     visited: Requirements = []
     queue: Requirements = [Requirement(canonicalize_name(root_package))]
