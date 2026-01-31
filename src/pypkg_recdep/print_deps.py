@@ -53,14 +53,20 @@ def print_one_pkg_short(mformat: MultiFormat, pkg: PkgKey, data: PkgInfo,
     if len(data['project_urls']) >= 1:
         mformat.start_bullet_item('project URLs:')
         for key, val in data['project_urls'].items():
-            mformat.start_bullet_item(f'{key}: {val}', level=3)
+            mformat.start_bullet_item(f'{key}: ', level=3)
+            mformat.add_url(url=val)
     if data['license'] is not None:
         mformat.start_bullet_item(f'License: {data['license']}', level=2)
     if data['homepage'] is not None:
-        mformat.start_bullet_item(f'Homepage: {data['homepage']}', level=2)
+        mformat.start_bullet_item('Homepage: ', level=2)
+        mformat.add_url(url=data['homepage'])
     if data['maintainer'] is not None:
         mformat.start_bullet_item(f'Maintainer: {data['maintainer']}', level=2)
-    mformat.start_bullet_item(f'Source URL: {data['source_url']}', level=2)
+    mformat.start_bullet_item('Source URL: ', level=2)
+    if data['source_url'] is not None:
+        mformat.add_url(url=data['source_url'])
+    else:
+        mformat.add_text('None')
     if data['dependencies']:
         mformat.start_bullet_item('Dependencies:', level=2)
         for dep in data['dependencies']:

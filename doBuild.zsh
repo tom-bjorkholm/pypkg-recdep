@@ -90,7 +90,7 @@ echo '' >> ${TSUMFILE}
 TRES=`grep 'passed' < ${PYTESTLOG} | tail -1 | sed 's/=//g' | sed 's/^ //g' | sed 's/.[0-9][0-9]s/s/g' | sed 's/ $//g'`
 echo ${TRES} >> ${DOCINDEX}
 echo '* Test result:' ${TRES} >> ${TSUMFILE}
-skipped=`grep 'passed' < ${PYTESTLOG} | tail -1 | grep skipped | wc -l`
+skipped=`grep 'passed' < ${PYTESTLOG} | tail -1 | grep -v ' 2 skipped' | grep skipped | wc -l`
 failed=`grep 'passed' < ${PYTESTLOG} | tail -1 | grep failed | wc -l`
 if [[ ${failed} -ne 0 ]] ; then
   echo "Pytest/pylint errors" >&2

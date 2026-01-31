@@ -120,8 +120,9 @@ def test_print_one_pkg_short_with_urls(capsys):
         with open(outfile, 'r', encoding='utf8') as file:
             output = file.read()
             assert 'project URLs:' in output
-            assert 'Homepage: http://example.com' in output
-            assert 'Source: http://github.com/test' in output
+            # URLs are now formatted as markdown links
+            assert 'Homepage: [http://example.com]' in output
+            assert 'Source: [http://github.com/test]' in output
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -469,11 +470,12 @@ def test_print_one_pkg_short_all_fields(capsys):
             assert 'Version: 3.0.0' in output
             assert 'Metadata version: 2.4' in output
             assert 'License: Apache-2.0' in output
-            assert 'Homepage: http://full-pkg.org' in output
+            # URLs are now formatted as markdown links
+            assert 'Homepage: [http://full-pkg.org]' in output
             assert 'Maintainer: Full Maintainer' in output
-            assert 'Source URL: http://github.com/full-pkg' in output
+            assert 'Source URL: [http://github.com/full-pkg]' in output
             assert 'project URLs:' in output
-            assert 'Docs: http://docs.full-pkg.org' in output
+            assert 'Docs: [http://docs.full-pkg.org]' in output
             assert 'Dependencies:' in output
             assert 'dep1' in output
             assert 'dep2' in output
