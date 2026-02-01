@@ -7,7 +7,7 @@
 from typing import TextIO, Optional, NamedTuple
 from os.path import isfile as os_path_isfile
 from packaging.requirements import Requirement
-from mformat.factory import create_mf
+from mformat.factory import create_mf, OptArgs
 from mformat.mformat import MultiFormat
 from pypkg_recdep.find_pypi_deps import resolve_all_dependencies, \
     find_fulfill_req
@@ -128,6 +128,19 @@ class OutputSpec(NamedTuple):
     purlfilename: Optional[str]
 
 
+def file_exists_cb(filename: str) -> None:
+    """Handle case when output file exists.
+
+    Returning allows overwriting the file.
+    Raises FileExistsError if overwrite is not allowed.
+    @param filename The name of the file that exists.
+    """
+    answer = input(f'File {filename} exists. Overwrite? (y/n): ')
+    if answer.lower() in ['y', 'ye', 'yes', 'yes!']:
+        return
+    raise FileExistsError(f'File {filename} exists.')
+
+
 def print_deps(deps: Pkgs, outputspec: OutputSpec,
                exclude: ExcludeInfo) -> int:
     """Print app dependencies that have been found.
@@ -145,9 +158,11 @@ def print_deps(deps: Pkgs, outputspec: OutputSpec,
     mainpkg, maininfo = list(deps.items())[0]
     kept, excluded = exclude.split_in_keep_and_exclude(pkgs=deps)
     sorted_kept_keys = sorted(list(kept.keys()))
+    optargs: OptArgs = {'file_exists_callback': file_exists_cb}
     with create_mf(format_name=outputspec.outfileformat,
                    file_name=outputspec.outfilename,
-                   url_as_text=outputspec.url_as_text) as mf:
+                   url_as_text=outputspec.url_as_text,
+                   args=optargs) as mf:
         mf.start_heading(text='Package dependency information for',
                          level=1)
         mf.add_text(mainpkg.name)

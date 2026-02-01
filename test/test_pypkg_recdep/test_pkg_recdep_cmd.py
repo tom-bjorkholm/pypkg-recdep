@@ -8,8 +8,11 @@ from copy import deepcopy
 from typing import Optional
 import os
 import re
+import sys
+from io import StringIO
 from tempfile import TemporaryDirectory
 import pytest
+from pypkg_recdep.pkg_info import Pkgs, PkgKey, create_pkginfo
 from pypkg_recdep.print_deps import OutputSpec
 from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd, get_def_domain
 from pypkg_recdep.list_ado_content import UrlInfo
@@ -176,7 +179,6 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
             'pat_file': pat_file,
             'output_file': output_file,
             'limit': limit})
-
     return (mock_resolve_all_dependencies, mock_print_deps,
             mock_list_ado_content, mock_list_in_internal_server)
 
@@ -307,12 +309,10 @@ def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
                 if 'exclude_csv' in expected_calls['print_deps']:
                     expected_calls['print_deps']['exclude_csv'] = \
                         temp_csv_path
-
         # Track function calls
         call_log: dict[str, list[dict]] = {}
         (mock_resolve_all_dependencies, mock_print_deps,
          _, _) = create_mock_functions(call_log)
-
         # Patch functions
         monkeypatch.setattr(
             'pypkg_recdep.print_deps.resolve_all_dependencies',
@@ -320,14 +320,11 @@ def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
         monkeypatch.setattr(
             'pypkg_recdep.print_deps.print_deps',
             mock_print_deps)
-
         # Run command
         ret = pypkg_recdep_cmd(arguments=args)
         assert ret == 0
-
         # Verify calls
         verify_function_calls(call_log, expected_calls)
-
         out, err = capsys.readouterr()
         assert '' == out
         assert '' == err
@@ -361,19 +358,15 @@ def test_listado_command(capsys, monkeypatch, args, expected_calls):
     # Track function calls
     call_log: dict[str, list[dict]] = {}
     (_, _, mock_list_ado_content, _) = create_mock_functions(call_log)
-
     # Patch functions
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
         mock_list_ado_content)
-
     # Run command
     ret = pypkg_recdep_cmd(arguments=args)
     assert ret == 0
-
     # Verify calls
     verify_function_calls(call_log, expected_calls)
-
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -399,19 +392,15 @@ def test_listinternal_command(capsys, monkeypatch, args, expected_calls):
     call_log: dict[str, list[dict]] = {}
     (_, _, _, mock_list_in_internal_server) = \
         create_mock_functions(call_log)
-
     # Patch functions
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
         mock_list_in_internal_server)
-
     # Run command
     ret = pypkg_recdep_cmd(arguments=args)
     assert ret == 0
-
     # Verify calls
     verify_function_calls(call_log, expected_calls)
-
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -485,7 +474,6 @@ def test_python_invocation(monkeypatch, capsys, args, expected_calls):
     call_log: dict[str, list[dict]] = {}
     (mock_resolve_all_dependencies, mock_print_deps,
      mock_list_ado_content, _) = create_mock_functions(call_log)
-
     # Patch functions
     monkeypatch.setattr(
         'pypkg_recdep.print_deps.resolve_all_dependencies',
@@ -496,14 +484,11 @@ def test_python_invocation(monkeypatch, capsys, args, expected_calls):
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_ado_content',
         mock_list_ado_content)
-
     # Run command
     ret = pypkg_recdep_cmd(arguments=args)
     assert ret == 0
-
     # Verify calls
     verify_function_calls(call_log, expected_calls)
-
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -533,7 +518,6 @@ def test_module_invocation(monkeypatch, capsys, args, expected_calls):
     call_log: dict[str, list[dict]] = {}
     (mock_resolve_all_dependencies, mock_print_deps,
      _, mock_list_in_internal_server) = create_mock_functions(call_log)
-
     # Patch functions
     monkeypatch.setattr(
         'pypkg_recdep.print_deps.resolve_all_dependencies',
@@ -544,14 +528,11 @@ def test_module_invocation(monkeypatch, capsys, args, expected_calls):
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
         mock_list_in_internal_server)
-
     # Run command
     ret = pypkg_recdep_cmd(arguments=args)
     assert ret == 0
-
     # Verify calls
     verify_function_calls(call_log, expected_calls)
-
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
@@ -592,7 +573,6 @@ def test_py_file_invocation(monkeypatch, capsys, args, expected_calls):
     (mock_resolve_all_dependencies, mock_print_deps,
      mock_list_ado_content, mock_list_in_internal_server) = \
         create_mock_functions(call_log)
-
     # Patch functions
     monkeypatch.setattr(
         'pypkg_recdep.print_deps.resolve_all_dependencies',
@@ -606,14 +586,69 @@ def test_py_file_invocation(monkeypatch, capsys, args, expected_calls):
     monkeypatch.setattr(
         'pypkg_recdep.pkg_recdep_cmd.list_in_internal_server',
         mock_list_in_internal_server)
-
     # Run command
     ret = pypkg_recdep_cmd(arguments=args)
     assert ret == 0
-
     # Verify calls
     verify_function_calls(call_log, expected_calls)
-
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
+
+
+def mock_resolve_all_dep(root_package: str,
+                         python_version: str,
+                         max_metadata_version: Optional[str] = None
+                         ) -> Pkgs:
+    """Mock resolve_all_dependencies."""
+    assert root_package is not None
+    assert python_version is not None
+    assert max_metadata_version is None
+    deps: Pkgs = {
+        PkgKey('mypkg', '1.0.0'): create_pkginfo(PkgKey('mypkg', '1.0.0'))
+    }
+    return deps
+
+
+def test_printdeps_cmd_file_cb_y(capsys, monkeypatch):
+    """Test printdeps command when file exists and user answers 'y'."""
+    fake_input = StringIO('y\ny\n')
+    monkeypatch.setattr(sys, 'stdin', fake_input)
+    monkeypatch.setattr('pypkg_recdep.print_deps.resolve_all_dependencies',
+                        mock_resolve_all_dep)
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with open(outfile, 'w', encoding='utf8') as f:
+            f.write('Original content.')
+        ret = pypkg_recdep_cmd(arguments=['printdeps', '--package', 'mypkg',
+                                          '--output', outfile, '-f', 'md'])
+        assert ret == 0
+        with open(outfile, 'r', encoding='utf8') as file:
+            content = file.read()
+        assert 'Original content.' not in content
+        assert 'mypkg' in content
+    out, err = capsys.readouterr()
+    assert f'File {outfile} exists. Overwrite? (y/n): ' in out
+    assert '' == err
+
+
+def test_printdeps_cmd_file_cb_n(capsys, monkeypatch):
+    """Test printdeps command when file exists and user answers 'n'."""
+    fake_input = StringIO('n\n')
+    monkeypatch.setattr(sys, 'stdin', fake_input)
+    monkeypatch.setattr('pypkg_recdep.print_deps.resolve_all_dependencies',
+                        mock_resolve_all_dep)
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with open(outfile, 'w', encoding='utf8') as f:
+            f.write('Original content.')
+        ret = pypkg_recdep_cmd(arguments=['printdeps', '--package', 'mypkg',
+                                          '--output', outfile, '-f', 'md'])
+        assert ret == 1
+        with open(outfile, 'r', encoding='utf8') as file:
+            content = file.read()
+            assert 'Original content.' in content
+            assert 'mypkg' not in content
+    out, err = capsys.readouterr()
+    assert f'File {outfile} exists. Overwrite? (y/n): ' in out
+    assert f'File {outfile} not overwritten.' in err

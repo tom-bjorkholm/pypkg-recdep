@@ -7,6 +7,7 @@
 from copy import deepcopy
 from tempfile import TemporaryDirectory
 from io import StringIO
+import sys
 import pytest
 from mformat.factory import create_mf
 from packaging.requirements import Requirement
@@ -580,4 +581,53 @@ def test_print_deps_with_existing_purls_file(capsys):
         assert 'File' in out
         assert 'exists. Appending to it.' in out
         assert purls_file in out
+        assert '' == err
+
+
+def test_print_deps_file_cb_y(capsys, monkeypatch):
+    """Test print_deps when file exists and user answers 'y'."""
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with open(outfile, 'w', encoding='utf8') as f:
+            f.write('Original content.')
+        fake_input = StringIO('y\ny\n')
+        monkeypatch.setattr(sys, 'stdin', fake_input)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        exclude = ExcludeInfo(txt='', csv_filename=None)
+        deps = {PkgKey('main-pkg', '1.0.0'):
+                create_test_pkg(name='main-pkg', version='1.0.0')}
+        ret = print_deps(deps=deps, outputspec=outspec, exclude=exclude)
+        assert ret == 0
+        with open(outfile, 'r', encoding='utf8') as file:
+            content = file.read()
+            assert 'Original content.' not in content
+            assert 'main-pkg' in content
+    out, err = capsys.readouterr()
+    assert f'File {outfile} exists. Overwrite? (y/n): ' in out
+    assert '' == err
+
+
+def test_print_deps_file_cb_n(capsys, monkeypatch):
+    """Test print_deps when file exists and user answers 'n'."""
+    with TemporaryDirectory() as dirname:
+        outfile = dirname + '/output.md'
+        with open(outfile, 'w', encoding='utf8') as f:
+            f.write('Original content.')
+        fake_input = StringIO('n\n')
+        monkeypatch.setattr(sys, 'stdin', fake_input)
+        outspec = OutputSpec(outfileformat='md', outfilename=outfile,
+                             url_as_text=False, purlfilename=None)
+        exclude = ExcludeInfo(txt='', csv_filename=None)
+        deps = {PkgKey('main-pkg', '1.0.0'):
+                create_test_pkg(name='main-pkg', version='1.0.0')}
+        with pytest.raises(FileExistsError):
+            _ = print_deps(deps=deps, outputspec=outspec,
+                           exclude=exclude)
+        with open(outfile, 'r', encoding='utf8') as file:
+            content = file.read()
+            assert 'Original content.' in content
+            assert 'main-pkg' not in content
+        out, err = capsys.readouterr()
+        assert f'File {outfile} exists. Overwrite? (y/n): ' in out
         assert '' == err

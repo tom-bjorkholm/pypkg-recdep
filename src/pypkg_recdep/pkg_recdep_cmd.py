@@ -70,11 +70,16 @@ def print_deps_func(args: argparse.Namespace) -> int:
                             outfilename=args.output[0],
                             url_as_text=args.url_as_text,
                             purlfilename=args.listpurls[0])
-    return print_rec_deps(app_name=args.package[0],
-                          metadata_max=args.metadatamax[0],
-                          python_ver=args.pythonversion[0],
-                          outputspec=outputspec,
-                          exclude=exclude)
+    try:
+        return print_rec_deps(app_name=args.package[0],
+                              metadata_max=args.metadatamax[0],
+                              python_ver=args.pythonversion[0],
+                              outputspec=outputspec,
+                              exclude=exclude)
+    except FileExistsError:
+        print(f'File {outputspec.outfilename} not overwritten.',
+              file=sys.stderr)
+    return 1
 
 
 def get_def_domain() -> str:
