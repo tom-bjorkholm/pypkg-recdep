@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
   name='pypkg-recdep',
-  version='0.4.1',
+  version='0.5',
   description='Recursively find dependencies for PyPI packages',
   author='Tom Björkholm',
   author_email='klausuler_linnet0q@icloud.com',
@@ -14,7 +14,7 @@ setup(
   package_dir={'pypkg_recdep': 'src/pypkg_recdep'},
   package_data={'ppypkg_recdep': ['src/py.typed']},
   install_requires=[
-    'mformat >= 0.2.2',
+    'mformat >= 0.3',
     'pypi-simple >= 1.8.0',
     'packaging >= 26.0',
     'argcomplete >= 3.6.3',

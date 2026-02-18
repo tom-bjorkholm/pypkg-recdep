@@ -48,6 +48,8 @@ def create_test_pkg(name: str, version: str,
     return info
 
 
+# Later we should investigate where start_bullet_item is used and fix it.
+@pytest.mark.filterwarnings('ignore:.*start_bullet_item is deprecated.*')
 @pytest.mark.parametrize('req_str,all_deps,expected_out',
                          [('pytest>=9.0', {}, 'No matching package'),
                           ('pytest>=9.0',

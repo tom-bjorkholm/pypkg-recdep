@@ -40,6 +40,7 @@ To limit the number of dependencies of pypkg-recdep (as you might want to instal
 
 | Version | Date        | Python version  | Description                         |
 |---------|-------------|-----------------|-------------------------------------|
+| 0.5     | 18 Feb 2026 | 3.12 or newer   | Improved with newer dependencies    |
 | 0.4     | 01 Feb 2026 | 3.12 or newer   | Additional output formats           |
 | 0.3     | 18 Dec 2025 | 3.12 or newer   | Fixed edge cases                    |
 | 0.2.1   | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
@@ -199,4 +200,4 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 * Test result: 461 passed, 2 skipped in 5s
 * No Flake8 warnings.
 * No mypy errors found.
-* 0.4.1 built and tested using python version: Python 3.14.2
+* 0.5 built and tested using python version: Python 3.14.3

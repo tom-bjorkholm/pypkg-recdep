@@ -29,10 +29,10 @@ def print_fulfilling_pkg(mformat: MultiFormat, req: Requirement,
     """
     key: Optional[PkgKey] = find_fulfill_req(req=req, pkgs=all_deps)
     if key is not None:
-        mformat.start_bullet_item(f'{key.name} version: {str(key.version)}',
-                                  level=4)
+        mformat.new_bullet_item(f'{key.name} version: {str(key.version)}',
+                                level=4)
     else:
-        mformat.start_bullet_item('(No matching package found!)', level=4)
+        mformat.new_bullet_item('(No matching package found!)', level=4)
 
 
 def print_one_pkg_short(mformat: MultiFormat, pkg: PkgKey, data: PkgInfo,
@@ -46,35 +46,35 @@ def print_one_pkg_short(mformat: MultiFormat, pkg: PkgKey, data: PkgInfo,
     @param data The more complete information on the package.
     @param all_deps A dict of all found dependencies.
     """
-    mformat.start_bullet_item(f'{pkg.name}', level=1)
-    mformat.start_bullet_item(f'Version: {str(pkg.version)}', level=2)
-    mformat.start_bullet_item(f'Metadata version: {data['metadata_version']}',
-                              level=2)
+    mformat.new_bullet_item(f'{pkg.name}', level=1)
+    mformat.new_bullet_item(f'Version: {str(pkg.version)}', level=2)
+    mformat.new_bullet_item(f'Metadata version: {data['metadata_version']}',
+                            level=2)
     if len(data['project_urls']) >= 1:
-        mformat.start_bullet_item('project URLs:')
+        mformat.new_bullet_item('project URLs:')
         for key, val in data['project_urls'].items():
-            mformat.start_bullet_item(f'{key}: ', level=3)
+            mformat.new_bullet_item(f'{key}: ', level=3)
             mformat.add_url(url=val)
     if data['license'] is not None:
-        mformat.start_bullet_item(f'License: {data['license']}', level=2)
+        mformat.new_bullet_item(f'License: {data['license']}', level=2)
     if data['homepage'] is not None:
-        mformat.start_bullet_item('Homepage: ', level=2)
+        mformat.new_bullet_item('Homepage: ', level=2)
         mformat.add_url(url=data['homepage'])
     if data['maintainer'] is not None:
-        mformat.start_bullet_item(f'Maintainer: {data['maintainer']}', level=2)
-    mformat.start_bullet_item('Source URL: ', level=2)
+        mformat.new_bullet_item(f'Maintainer: {data['maintainer']}', level=2)
+    mformat.new_bullet_item('Source URL: ', level=2)
     if data['source_url'] is not None:
         mformat.add_url(url=data['source_url'])
     else:
         mformat.add_text('None')
     if data['dependencies']:
-        mformat.start_bullet_item('Dependencies:', level=2)
+        mformat.new_bullet_item('Dependencies:', level=2)
         for dep in data['dependencies']:
             if dep.specifier:
-                mformat.start_bullet_item(f'{dep.name}  {str(dep.specifier)}',
-                                          level=3)
+                mformat.new_bullet_item(f'{dep.name}  {str(dep.specifier)}',
+                                        level=3)
             else:
-                mformat.start_bullet_item(f'{dep.name}', level=3)
+                mformat.new_bullet_item(f'{dep.name}', level=3)
             print_fulfilling_pkg(mformat=mformat, req=dep, all_deps=all_deps)
 
 
@@ -94,15 +94,15 @@ def print_one_pkg(mformat: MultiFormat,  # pylint: disable=too-many-arguments,to
     @param all_deps A dict of all found dependencies.
     """
     if mainpkg:
-        mformat.start_heading(text=f'Primary package: {pkg.name}', level=2)
+        mformat.new_heading(text=f'Primary package: {pkg.name}', level=2)
     else:
-        mformat.start_heading(text=f'{pkg.name}', level=3)
+        mformat.new_heading(text=f'{pkg.name}', level=3)
     print_one_pkg_short(mformat=mformat, pkg=pkg, data=data,
                         all_deps=all_deps)
     if data['license_text'] is None:
         return
-    mformat.start_heading(text=f'License text ({pkg.name})',
-                          level=3 if mainpkg else 4)
+    mformat.new_heading(text=f'License text ({pkg.name})',
+                        level=3 if mainpkg else 4)
     mformat.write_code_block(text=data['license_text'].strip(),
                              programming_language='txt')
 
@@ -163,34 +163,34 @@ def print_deps(deps: Pkgs, outputspec: OutputSpec,
                    file_name=outputspec.outfilename,
                    url_as_text=outputspec.url_as_text,
                    args=optargs) as mf:
-        mf.start_heading(text='Package dependency information for',
-                         level=1)
+        mf.new_heading(text='Package dependency information for',
+                       level=1)
         mf.add_text(mainpkg.name)
         print_one_pkg(mformat=mf, pkg=mainpkg, data=maininfo,
                       mainpkg=True, all_deps=deps)
-        mf.start_heading(text='Depends (recursively) on packages', level=2)
+        mf.new_heading(text='Depends (recursively) on packages', level=2)
         if not kept:
-            mf.start_paragraph(text='Depends only on packages that '
-                               f'are {exclude.txt}')
+            mf.new_paragraph(text='Depends only on packages that '
+                             f'are {exclude.txt}')
         for pkg in sorted_kept_keys:
             if pkg != mainpkg:
                 print_one_pkg_short(mformat=mf, pkg=pkg, data=kept[pkg],
                                     all_deps=deps)
         if excluded:
-            mf.start_heading(text=f'Also depends on packages {exclude.txt}',
-                             level=3)
-            mf.start_paragraph(text=f'These dependencies are {exclude.txt}.')
+            mf.new_heading(text=f'Also depends on packages {exclude.txt}',
+                           level=3)
+            mf.new_paragraph(text=f'These dependencies are {exclude.txt}.')
             mf.add_text('There will not be any details listed for these.')
             excluded_keys = sorted(list(excluded.keys()))
             for pkg in excluded_keys:
                 print_one_pkg_short(mformat=mf, pkg=pkg, data=excluded[pkg],
                                     all_deps=deps)
-        mf.start_heading(text='Information on dependencies', level=2)
+        mf.new_heading(text='Information on dependencies', level=2)
         for pkg in sorted_kept_keys:
             if pkg != mainpkg:
                 print_one_pkg(mformat=mf, pkg=pkg, data=kept[pkg],
                               mainpkg=False, all_deps=deps)
-        mf.start_paragraph('(End of document.)')
+        mf.new_paragraph('(End of document.)')
     if outputspec.purlfilename:
         if os_path_isfile(outputspec.purlfilename):
             print(f'File {outputspec.purlfilename} exists. Appending to it.')
