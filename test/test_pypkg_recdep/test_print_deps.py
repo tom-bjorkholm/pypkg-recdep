@@ -48,8 +48,6 @@ def create_test_pkg(name: str, version: str,
     return info
 
 
-# Later we should investigate where start_bullet_item is used and fix it.
-@pytest.mark.filterwarnings('ignore:.*start_bullet_item is deprecated.*')
 @pytest.mark.parametrize('req_str,all_deps,expected_out',
                          [('pytest>=9.0', {}, 'No matching package'),
                           ('pytest>=9.0',
@@ -68,7 +66,7 @@ def test_print_fulfilling_pkg_ok1(capsys, req_str, all_deps,
         outfile = dirname + '/output.md'
         with create_mf(format_name='md', file_name=outfile) as mf:
             for i in range(1, 4):
-                mf.start_bullet_item('x', level=i)
+                mf.new_bullet_item('x', level=i)
             print_fulfilling_pkg(mformat=mf, req=req,
                                  all_deps=deepcopy(all_deps))
         with open(outfile, 'r', encoding='utf8') as file:
