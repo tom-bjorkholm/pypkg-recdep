@@ -5,7 +5,7 @@
 # MIT License
 
 from copy import deepcopy
-from typing import Optional
+from typing import Callable, Optional, cast
 import os
 import re
 import sys
@@ -81,7 +81,8 @@ from pypkg_recdep.exclude import ExcludeInfo
                             r'-a.*--patfile',
                             r'File name of file with personal access token'
                             ])])
-def test_help_text(capsys, args, expected_patterns):
+def test_help_text(capsys: pytest.CaptureFixture[str], args: list[str],
+                   expected_patterns: list[str]) -> None:
     """Test help text generation for all commands."""
     with pytest.raises(SystemExit) as exc_info:
         pypkg_recdep_cmd(arguments=deepcopy(args))
@@ -109,7 +110,8 @@ def test_help_text(capsys, args, expected_patterns):
                            r'error:.*--instance.*expected.*argument'),
                           (['listinternal', '--url'],
                            r'error:.*--url.*expected.*argument')])
-def test_error_messages(capsys, args, expected_error):
+def test_error_messages(capsys: pytest.CaptureFixture[str], args: list[str],
+                        expected_error: str) -> None:
     """Test error messages for incorrect command lines."""
     with pytest.raises(SystemExit) as exc_info:
         pypkg_recdep_cmd(arguments=deepcopy(args))
@@ -123,7 +125,13 @@ def test_error_messages(capsys, args, expected_error):
 # Section with tests of correct command lines
 
 
-def create_mock_functions(call_log: dict[str, list[dict]]):
+def create_mock_functions(call_log: dict[str, list[dict[str, object]]]) -> \
+        tuple[
+            Callable[[str, str, Optional[str]], Pkgs],
+            Callable[[Pkgs, OutputSpec, ExcludeInfo], int],
+            Callable[[str, UrlInfo, Optional[str], list[str]], int],
+            Callable[[str, str, str, Optional[int]], None]
+        ]:
     """Create mock functions that log calls to call_log.
 
     @param call_log Dictionary to log function calls to.
@@ -133,7 +141,7 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
     def mock_resolve_all_dependencies(root_package: str,
                                       python_version: str,
                                       max_metadata_version:
-                                      Optional[str] = None):
+                                      Optional[str] = None) -> Pkgs:
         """Mock resolve_all_dependencies."""
         call_log.setdefault('resolve_all_dependencies', []).append({
             'root_package': root_package,
@@ -141,8 +149,8 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
             'max_metadata_version': max_metadata_version})
         return {}
 
-    def mock_print_deps(deps, outputspec: OutputSpec,
-                        exclude: ExcludeInfo):
+    def mock_print_deps(deps: Pkgs, outputspec: OutputSpec,
+                        exclude: ExcludeInfo) -> int:
         """Mock print_deps."""
         # Suppress unused argument warning
         _ = deps
@@ -158,7 +166,7 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
 
     def mock_list_ado_content(file_name: str, url_info: UrlInfo,
                               project: Optional[str],
-                              include_types: list[str]):
+                              include_types: list[str]) -> int:
         """Mock list_ado_content."""
         call_log.setdefault('list_ado_content', []).append({
             'file_name': file_name,
@@ -172,7 +180,7 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
 
     def mock_list_in_internal_server(server_url: str, pat_file: str,
                                      output_file: str,
-                                     limit: Optional[int]):
+                                     limit: Optional[int]) -> None:
         """Mock list_in_internal_server."""
         call_log.setdefault('list_in_internal_server', []).append({
             'server_url': server_url,
@@ -184,8 +192,9 @@ def create_mock_functions(call_log: dict[str, list[dict]]):
 
 
 # pylint: disable=too-many-branches
-def verify_function_calls(call_log: dict[str, list[dict]],
-                          expected_calls: dict[str, dict]):
+def verify_function_calls(call_log: dict[str, list[dict[str, object]]],
+                          expected_calls: dict[str,
+                                               dict[str, object]]) -> None:
     """Verify that functions were called with expected arguments.
 
     @param call_log Dictionary with logged function calls.
@@ -201,15 +210,16 @@ def verify_function_calls(call_log: dict[str, list[dict]],
         for key, expected_value in expected_call.items():
             if key == 'url_info':
                 assert isinstance(actual_call[key], UrlInfo)
-                url_info = actual_call[key]
-                if expected_value.instance is not None:
-                    assert url_info.instance == expected_value.instance
-                if expected_value.collection is not None:
+                url_info = cast(UrlInfo, actual_call[key])
+                expected_url = cast(UrlInfo, expected_value)
+                if expected_url.instance is not None:
+                    assert url_info.instance == expected_url.instance
+                if expected_url.collection is not None:
                     assert url_info.collection == \
-                        expected_value.collection
-                if expected_value.pat_file is not None:
+                        expected_url.collection
+                if expected_url.pat_file is not None:
                     assert url_info.pat_file == \
-                        expected_value.pat_file
+                        expected_url.pat_file
             elif key == 'url_info_instance':
                 assert isinstance(actual_call['url_info'], UrlInfo)
                 url_info = actual_call['url_info']
@@ -292,7 +302,11 @@ def verify_function_calls(call_log: dict[str, list[dict]],
                                'purls': 'purls.txt',
                                'exclude_txt': 'excluded text',
                                'exclude_csv': 'TEMP_EXCL_CSV'}})])
-def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
+def test_printdeps_command(capsys: pytest.CaptureFixture[str],
+                           monkeypatch: pytest.MonkeyPatch,
+                           args: list[str],
+                           expected_calls: dict[str,
+                                                dict[str, object]]) -> None:
     """Test printdeps command with mocked functions."""
     with TemporaryDirectory() as temp_dir:
         # Create temporary CSV file if needed
@@ -310,7 +324,7 @@ def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
                     expected_calls['print_deps']['exclude_csv'] = \
                         temp_csv_path
         # Track function calls
-        call_log: dict[str, list[dict]] = {}
+        call_log: dict[str, list[dict[str, object]]] = {}
         (mock_resolve_all_dependencies, mock_print_deps,
          _, _) = create_mock_functions(call_log)
         # Patch functions
@@ -353,10 +367,13 @@ def test_printdeps_command(capsys, monkeypatch, args, expected_calls):
                           (['listado', '-p', 'None'],
                            {'list_ado_content': {
                                'project': None}})])
-def test_listado_command(capsys, monkeypatch, args, expected_calls):
+def test_listado_command(capsys: pytest.CaptureFixture[str],
+                         monkeypatch: pytest.MonkeyPatch, args: list[str],
+                         expected_calls: dict[str,
+                                              dict[str, object]]) -> None:
     """Test listado command with mocked functions."""
     # Track function calls
-    call_log: dict[str, list[dict]] = {}
+    call_log: dict[str, list[dict[str, object]]] = {}
     (_, _, mock_list_ado_content, _) = create_mock_functions(call_log)
     # Patch functions
     monkeypatch.setattr(
@@ -386,10 +403,14 @@ def test_listado_command(capsys, monkeypatch, args, expected_calls):
                                'pat_file': 'token.txt',
                                'output_file': 'out.csv',
                                'limit': 10}})])
-def test_listinternal_command(capsys, monkeypatch, args, expected_calls):
+def test_listinternal_command(
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        args: list[str],
+        expected_calls: dict[str, dict[str, object]]) -> None:
     """Test listinternal command with mocked functions."""
     # Track function calls
-    call_log: dict[str, list[dict]] = {}
+    call_log: dict[str, list[dict[str, object]]] = {}
     (_, _, _, mock_list_in_internal_server) = \
         create_mock_functions(call_log)
     # Patch functions
@@ -416,14 +437,16 @@ def test_listinternal_command(capsys, monkeypatch, args, expected_calls):
                           ('hostname.localdomain', 'localdomain'),
                           ('hostname.example.com', 'example.com'),
                           ('hostname.sub.example.com', 'example.com')])
-def test_get_def_domain(monkeypatch, fqdn, expected):
+def test_get_def_domain(monkeypatch: pytest.MonkeyPatch, fqdn: str,
+                        expected: str) -> None:
     """Test get_def_domain with various FQDN values."""
     monkeypatch.setattr('pypkg_recdep.pkg_recdep_cmd.getfqdn', lambda: fqdn)
     result = get_def_domain()
     assert result == expected
 
 
-def test_get_def_domain_empty_dlist(monkeypatch):
+def test_get_def_domain_empty_dlist(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """Test get_def_domain when dlist becomes empty (line 87)."""
     # hostname -> split('.')[1:] -> [] -> len < 1 -> ['local'] (line 87)
     monkeypatch.setattr('pypkg_recdep.pkg_recdep_cmd.getfqdn',
@@ -436,7 +459,8 @@ def test_get_def_domain_empty_dlist(monkeypatch):
                          [('hostname.example', 'local.example'),
                           ('hostname.test', 'local.test'),
                           ('hostname.mydomain', 'local.mydomain')])
-def test_get_def_domain_insert_local(monkeypatch, fqdn, expected):
+def test_get_def_domain_insert_local(monkeypatch: pytest.MonkeyPatch,
+                                     fqdn: str, expected: str) -> None:
     """Test get_def_domain when local is inserted (line 89)."""
     # Mock getfqdn to return a value that results in dlist with len < 2
     # and dlist[0] != 'local' and != 'localdomain'
@@ -468,10 +492,14 @@ def test_get_def_domain_insert_local(monkeypatch, fqdn, expected):
                                'url_info_pat_file': None,
                                'project': None,
                                'include_types': 'check_default'}})])
-def test_python_invocation(monkeypatch, capsys, args, expected_calls):
+def test_python_invocation(monkeypatch: pytest.MonkeyPatch,
+                           capsys: pytest.CaptureFixture[str],
+                           args: list[str],
+                           expected_calls: dict[str,
+                                                dict[str, object]]) -> None:
     """Test pypkg_recdep_cmd with python invocation (line 307)."""
     # Track function calls
-    call_log: dict[str, list[dict]] = {}
+    call_log: dict[str, list[dict[str, object]]] = {}
     (mock_resolve_all_dependencies, mock_print_deps,
      mock_list_ado_content, _) = create_mock_functions(call_log)
     # Patch functions
@@ -512,10 +540,14 @@ def test_python_invocation(monkeypatch, capsys, args, expected_calls):
                                'pat_file': None,
                                'output_file': 'internal.csv',
                                'limit': None}})])
-def test_module_invocation(monkeypatch, capsys, args, expected_calls):
+def test_module_invocation(monkeypatch: pytest.MonkeyPatch,
+                           capsys: pytest.CaptureFixture[str],
+                           args: list[str],
+                           expected_calls: dict[str,
+                                                dict[str, object]]) -> None:
     """Test pypkg_recdep_cmd with -m module invocation (line 309)."""
     # Track function calls
-    call_log: dict[str, list[dict]] = {}
+    call_log: dict[str, list[dict[str, object]]] = {}
     (mock_resolve_all_dependencies, mock_print_deps,
      _, mock_list_in_internal_server) = create_mock_functions(call_log)
     # Patch functions
@@ -566,10 +598,14 @@ def test_module_invocation(monkeypatch, capsys, args, expected_calls):
                                'pat_file': None,
                                'output_file': 'internal.csv',
                                'limit': None}})])
-def test_py_file_invocation(monkeypatch, capsys, args, expected_calls):
+def test_py_file_invocation(monkeypatch: pytest.MonkeyPatch,
+                            capsys: pytest.CaptureFixture[str],
+                            args: list[str],
+                            expected_calls: dict[str,
+                                                 dict[str, object]]) -> None:
     """Test pypkg_recdep_cmd with .py file invocation (line 311)."""
     # Track function calls
-    call_log: dict[str, list[dict]] = {}
+    call_log: dict[str, list[dict[str, object]]] = {}
     (mock_resolve_all_dependencies, mock_print_deps,
      mock_list_ado_content, mock_list_in_internal_server) = \
         create_mock_functions(call_log)
@@ -610,7 +646,8 @@ def mock_resolve_all_dep(root_package: str,
     return deps
 
 
-def test_printdeps_cmd_file_cb_y(capsys, monkeypatch):
+def test_printdeps_cmd_file_cb_y(capsys: pytest.CaptureFixture[str],
+                                 monkeypatch: pytest.MonkeyPatch) -> None:
     """Test printdeps command when file exists and user answers 'y'."""
     fake_input = StringIO('y\ny\n')
     monkeypatch.setattr(sys, 'stdin', fake_input)
@@ -632,7 +669,8 @@ def test_printdeps_cmd_file_cb_y(capsys, monkeypatch):
     assert '' == err
 
 
-def test_printdeps_cmd_file_cb_n(capsys, monkeypatch):
+def test_printdeps_cmd_file_cb_n(capsys: pytest.CaptureFixture[str],
+                                 monkeypatch: pytest.MonkeyPatch) -> None:
     """Test printdeps command when file exists and user answers 'n'."""
     fake_input = StringIO('n\n')
     monkeypatch.setattr(sys, 'stdin', fake_input)

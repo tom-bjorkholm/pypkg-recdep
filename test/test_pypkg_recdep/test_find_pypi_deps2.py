@@ -5,16 +5,17 @@
 # MIT License
 
 from copy import deepcopy
-from typing import Optional, NamedTuple
+from typing import Optional, NamedTuple, cast
 from itertools import cycle
 from enum import IntEnum, auto
 import pickle
 import shutil
 import pytest
-from pypi_simple import ProjectPage, DistributionPackage, \
+from pypi_simple import PyPISimple, ProjectPage, DistributionPackage, \
     NoMetadataError, NoSuchProjectError
 from packaging.version import Version
 from packaging.requirements import Requirement
+from packaging.metadata import RawMetadata
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo
 from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
     get_environment, get_best_pkg, NoMatchingPackage, get_license_name, \
@@ -26,7 +27,8 @@ from pypkg_recdep.find_pypi_deps import set_pkginfo_from_raw, \
                          [('MIT', 'MIT'), ('mit', 'MIT'),
                           ('MIT License', 'MIT License'),
                           ('MITLIKE', 'MITLIKE')])
-def test_get_lic_name(capsys, rawlic, res):
+def test_get_lic_name(capsys: pytest.CaptureFixture[str], rawlic: str,
+                      res: str) -> None:
     """Test OK cases if get_license_name."""
     ret = get_license_name(raw_lic_name=deepcopy(rawlic))
     out, err = capsys.readouterr()
@@ -57,7 +59,9 @@ CLS3 = [
                           (CLS2, 'MIT License, BSD'),
                           (CLS3, None), ([], None),
                           (None, None)])
-def test_get_lic_name_fr_clf(capsys, classf, res):
+def test_get_lic_name_fr_clf(capsys: pytest.CaptureFixture[str],
+                             classf: Optional[list[str]],
+                             res: Optional[str]) -> None:
     """Test OK cases of get_lic_name_fr_classifier."""
     ret = get_lic_name_fr_classifier(classf=classf)
     out, err = capsys.readouterr()
@@ -66,13 +70,14 @@ def test_get_lic_name_fr_clf(capsys, classf, res):
     assert '' == err
 
 
-def compare_to(expected: dict[str, Optional[str | list]]) -> PkgInfo:
+def compare_to(expected: dict[str, object]) -> PkgInfo:
     """Get a dict for comparison."""
     ret = create_pkginfo(key=PkgKey(name='a', version='0.0'))
+    ret_dict = cast(dict[str, object], ret)
     for key, value in expected.items():
-        assert key in ret
-        ret[key] = value
-    return ret
+        assert key in ret_dict
+        ret_dict[key] = value
+    return cast(PkgInfo, ret_dict)
 
 
 @pytest.mark.parametrize('raw,res',
@@ -110,18 +115,22 @@ def compare_to(expected: dict[str, Optional[str | list]]) -> PkgInfo:
                             'maintainer': 'Mr Fix',
                             'dependencies': [Requirement('bcd'),
                                              Requirement('efg')]})])
-def test_set_pkginfo_from_raw_ok1(capsys, raw, res):
+def test_set_pkginfo_from_raw_ok1(capsys: pytest.CaptureFixture[str],
+                                  raw: dict[str, object],
+                                  res: dict[str, object]) -> None:
     """Test OK cases 1 of set_pkginfo_from_raw."""
     expected = compare_to(deepcopy(res))
     info = create_pkginfo(key=PkgKey(name='a', version='0.0'))
-    set_pkginfo_from_raw(info=info, raw=deepcopy(raw),
+    set_pkginfo_from_raw(info=info, raw=cast(RawMetadata, deepcopy(raw)),
                          pyenv=get_environment(pyversion=Version('3.13')))
     out, err = capsys.readouterr()
     assert len(info) == len(expected)
-    for expected_key, expected_value in expected.items():
+    expected_dict = cast(dict[str, object], expected)
+    info_dict = cast(dict[str, object], info)
+    for expected_key, expected_value in expected_dict.items():
         print(expected_key)
-        assert expected_key in info
-        assert expected_value == info[expected_key]
+        assert expected_key in info_dict
+        assert expected_value == info_dict[expected_key]
     assert '' == err
     assert '' == out
 
@@ -130,27 +139,32 @@ def test_set_pkginfo_from_raw_ok1(capsys, raw, res):
 @pytest.mark.parametrize('skey', ['Source', 'source', 'GitHub', 'github',
                                   'Repository', 'repository', 'Code',
                                   'code', 'Homepage', 'homepage'])
-def test_set_pkginfo_from_raw_ok2(capsys, surl, skey):
+def test_set_pkginfo_from_raw_ok2(capsys: pytest.CaptureFixture[str],
+                                  surl: str, skey: str) -> None:
     """Test OK cases 2 of set_pkginfo_from_raw."""
-    raw = {
+    raw: dict[str, object] = {
         'project_urls': {'homepage': 'http://a.com'}
     }
-    raw['project_urls'][skey] = surl
-    res = {
+    raw_urls = cast(dict[str, str], raw['project_urls'])
+    raw_urls[skey] = surl
+    res: dict[str, object] = {
         'project_urls': {'homepage': 'http://a.com'}
     }
-    res['project_urls'][skey] = surl
+    res_urls = cast(dict[str, str], res['project_urls'])
+    res_urls[skey] = surl
     res['source_url'] = surl
     expected = compare_to(deepcopy(res))
     info = create_pkginfo(key=PkgKey(name='a', version='0.0'))
-    set_pkginfo_from_raw(info=info, raw=deepcopy(raw),
+    set_pkginfo_from_raw(info=info, raw=cast(RawMetadata, deepcopy(raw)),
                          pyenv=get_environment(pyversion=Version('3.13')))
     out, err = capsys.readouterr()
     assert len(info) == len(expected)
-    for expected_key, expected_value in expected.items():
+    expected_dict = cast(dict[str, object], expected)
+    info_dict = cast(dict[str, object], info)
+    for expected_key, expected_value in expected_dict.items():
         print(expected_key)
-        assert expected_key in info
-        assert expected_value == info[expected_key]
+        assert expected_key in info_dict
+        assert expected_value == info_dict[expected_key]
     assert '' == err
     assert '' == out
 
@@ -197,7 +211,8 @@ class MockClient1:
         """Enter context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None,
+                 exc_val: BaseException | None, exc_tb: object) -> None:
         """Exit context manager."""
 
     def lookup_page(self, name: str) -> None:
@@ -265,6 +280,7 @@ class MockClient1:
                              timeout: float) -> str:
         """Get mocked metadata for a package."""
         assert timeout is not None
+        assert pkg.version is not None
         self.lookup_meta(pkg.version)
         thispage = self.spec[self.pageindex]
         mspec = thispage.metas[self.metaindex]
@@ -281,10 +297,18 @@ class MockClient1:
                                 val=[mspec.metaversion])
             meta = self.rewrite(text=meta, key='Name', val=[thispage.name])
             meta = self.rewrite(text=meta, key='Version', val=[mspec.version])
-            meta = self.rewrite(text=meta, key='Requires-Python',
-                                val=[mspec.py_req])
-            meta = self.rewrite(text=meta, key='Requires-Dist',
-                                val=mspec.reqs)
+            if mspec.py_req is not None:
+                meta = self.rewrite(text=meta, key='Requires-Python',
+                                    val=[mspec.py_req])
+            else:
+                meta = self.rewrite(text=meta, key='Requires-Python',
+                                    val=[])
+            if mspec.reqs is not None:
+                meta = self.rewrite(text=meta, key='Requires-Dist',
+                                    val=mspec.reqs)
+            else:
+                meta = self.rewrite(text=meta, key='Requires-Dist',
+                                    val=[])
             # Change License-File for 'jai' and 'pyt' base to avoid missing
             # LICENSE file issue in pkgtest.zip
             if thispage.base in ('jai', 'pyt'):
@@ -292,7 +316,8 @@ class MockClient1:
                                     val=['LICENSE.txt'])
             return meta
 
-    def download_package(self, pkg, path: str, timeout: float) -> None:
+    def download_package(self, pkg: DistributionPackage, path: str,
+                         timeout: float) -> None:
         """Get mocked package file for licence text file."""
         assert pkg is not None
         assert timeout is not None
@@ -355,7 +380,8 @@ Dynamic: license-file
                           (MT1I, 'Name', ['something'], MT1R3),
                           (MT2I, 'Requires-Dist', ['abc', 'def >= 1'], MT2R1)
                           ])
-def test_mock_rewrite(capsys, txt, key, val, res):
+def test_mock_rewrite(capsys: pytest.CaptureFixture[str], txt: str, key: str,
+                      val: list[str], res: str) -> None:
     """Test the mock rewrite function."""
     ret = MockClient1.rewrite(text=txt, key=key, val=val)
     out, err = capsys.readouterr()
@@ -434,14 +460,17 @@ def create_test_pkg_spec() -> list[MockSpecPage]:
                           (GBP_C1, 'abc >= 0.8', '3.9', None, GBP_1R3, False),
                           (GBP_C1, 'abc >= 0.8', '3.14', '2.2', GBP_1R2, True)
                           ])
-def test_get_best_pkg_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                          cspec, req, pyv, metav, res, expect_warn):
+def test_get_best_pkg_ok1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                          cspec: list[MockSpecPage], req: str, pyv: str,
+                          metav: Optional[str], res: GetBestPkgRes,
+                          expect_warn: bool) -> None:
     """Test OK cases of get_best_pkg."""
     reset_warnings()
     mock_client = MockClient1(spec=cspec, lookup=LookupWhat.LOOKUP_BOTH)
     env = get_environment(pyversion=Version(pyv))
     metaversion = Version(metav) if metav is not None else None
-    ret: PkgInfo = get_best_pkg(client=mock_client, req=Requirement(req),
+    ret: PkgInfo = get_best_pkg(client=cast(PyPISimple, mock_client),
+                                req=Requirement(req),
                                 pyversion=Version(pyv),
                                 metaversion=metaversion,
                                 pyenv=env)
@@ -471,12 +500,15 @@ GBP_C1N = [
                          [(GBP_C1N, 'abc >= 0.8', '3.14', 'No match for abc'),
                           (GBP_C1, 'abc >= 3.8', '3.11',
                            'No match for version abc>=3.8')])
-def test_get_best_pkg_nok1(capsys, cspec, req, pyv, excmsg):
+def test_get_best_pkg_nok1(capsys: pytest.CaptureFixture[str],
+                           cspec: list[MockSpecPage], req: str, pyv: str,
+                           excmsg: str) -> None:
     """Test not OK cases of get_best_pkg."""
     mock_client = MockClient1(spec=cspec, lookup=LookupWhat.LOOKUP_BOTH)
     env = get_environment(pyversion=Version(pyv))
     with pytest.raises(NoMatchingPackage) as exc:
-        _ = get_best_pkg(client=mock_client, req=Requirement(req),
+        _ = get_best_pkg(client=cast(PyPISimple, mock_client),
+                         req=Requirement(req),
                          pyversion=Version(pyv),
                          metaversion=None, pyenv=env)
     assert excmsg in str(exc)
@@ -539,9 +571,11 @@ RAD_C1 = [
                            [('abc', '1.0'), ('def', '2.0'), ('fgh', '1.0.1')],
                            True)
                           ])
-def test_resolve_all_dependencies_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                      monkeypatch, root, pyv, metav,
-                                      exp_keys, expect_warn):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_ok1(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        exp_keys: list[tuple[str, str]], expect_warn: bool) -> None:
     """Test OK cases of resolve_all_dependencies."""
     mock_client = MockClient1(spec=RAD_C1, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -577,9 +611,11 @@ RAD_C2 = [
                            [('simple-pkg', '1.0')]),
                           ('simple-pkg', '3.10', '2.1',
                            [('simple-pkg', '1.0')])])
-def test_resolve_all_dependencies_ok2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                      monkeypatch, root, pyv, metav,
-                                      exp_keys):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_ok2(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        exp_keys: list[tuple[str, str]]) -> None:
     """Test OK cases with package with no dependencies."""
     mock_client = MockClient1(spec=RAD_C2, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -628,9 +664,11 @@ RAD_C3 = [
                          [('root', '3.13', None,
                            [('root', '1.0'), ('dep1', '2.0'),
                             ('dep2', '2.5'), ('dep3', '1.0')])])
-def test_resolve_all_dependencies_ok3(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                      monkeypatch, root, pyv, metav,
-                                      exp_keys):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_ok3(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        exp_keys: list[tuple[str, str]]) -> None:
     """Test OK cases with shared dependencies."""
     mock_client = MockClient1(spec=RAD_C3, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -657,9 +695,11 @@ RAD_C4 = [
 @pytest.mark.parametrize('root,pyv,metav,errmsg',
                          [('nonexistent', '3.13', None,
                            'No matching package found for nonexistent')])
-def test_resolve_all_dependencies_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                       monkeypatch, root, pyv, metav,
-                                       errmsg):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_nok1(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        errmsg: str) -> None:
     """Test not OK cases with nonexistent package."""
     mock_client = MockClient1(spec=RAD_C4, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -687,9 +727,11 @@ RAD_C5 = [
                          [('has-missing-dep', '3.13', None,
                            [('has-missing-dep', '1.0')],
                            'No matching package found for missing-dep')])
-def test_resolve_all_dependencies_nok2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                       monkeypatch, root, pyv, metav,
-                                       exp_keys, errmsg):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_nok2(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        exp_keys: list[tuple[str, str]], errmsg: str) -> None:
     """Test not OK cases with package that has missing dependency."""
     mock_client = MockClient1(spec=RAD_C5, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -719,9 +761,11 @@ RAD_C6 = [
 @pytest.mark.parametrize('root,pyv,metav,errmsg',
                          [('new-python-only', '3.10', None,
                            'No matching package found for new-python-only')])
-def test_resolve_all_dependencies_nok3(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                                       monkeypatch, root, pyv, metav,
-                                       errmsg):
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def test_resolve_all_dependencies_nok3(
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        root: str, pyv: str, metav: Optional[str],
+        errmsg: str) -> None:
     """Test not OK cases with incompatible Python version."""
     mock_client = MockClient1(spec=RAD_C6, lookup=LookupWhat.LOOKUP_BOTH)
     monkeypatch.setattr('pypkg_recdep.find_pypi_deps.PyPISimple',
@@ -738,7 +782,8 @@ def test_resolve_all_dependencies_nok3(capsys,  # pylint: disable=too-many-argum
 # Tests for metadata version warning functionality
 
 
-def test_warn_metadata_version_exceeded_once(capsys):
+def test_warn_metadata_version_exceeded_once(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test that warning is printed only once per run."""
     reset_warnings()
     _warn_metadata_version_exceeded(
@@ -759,7 +804,8 @@ def test_warn_metadata_version_exceeded_once(capsys):
     assert '' == err2
 
 
-def test_warn_metadata_version_reset(capsys):
+def test_warn_metadata_version_reset(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test that reset allows warning again."""
     reset_warnings()
     _warn_metadata_version_exceeded(
@@ -795,7 +841,9 @@ RAD_C7 = [
 ]
 
 
-def test_resolve_all_deps_warns_metadata_exceeded(capsys, monkeypatch):
+def test_resolve_all_deps_warns_metadata_exceeded(
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """Test warning when some packages have metadata version exceeding max.
 
     This test uses a package with two versions:
@@ -825,7 +873,8 @@ def test_resolve_all_deps_warns_metadata_exceeded(capsys, monkeypatch):
 
 
 @pytest.mark.slow
-def test_integration_pypi_resolve_dependencies(capsys):
+def test_integration_pypi_resolve_dependencies(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Integration test: resolve dependencies from actual PyPI.org.
 
     This test queries the real PyPI.org server to verify that the
@@ -857,7 +906,8 @@ def test_integration_pypi_resolve_dependencies(capsys):
 
 
 @pytest.mark.slow
-def test_integration_pypi_metadata_version_filtering(capsys):
+def test_integration_pypi_metadata_version_filtering(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Integration test: verify metadata version filtering with real PyPI.
 
     This test verifies that metadata version filtering works correctly

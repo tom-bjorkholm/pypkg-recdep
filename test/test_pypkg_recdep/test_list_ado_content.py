@@ -8,18 +8,20 @@ from copy import deepcopy
 from tempfile import TemporaryDirectory
 import csv
 import base64
+from typing import cast
 import pytest
 from pypkg_recdep.list_ado_content import print_pkgs, get_headers, \
     get_from_rest, get_value_from_rest, get_feed_id, get_from_meta, \
     parse_meta, parse_fileinfo, get_pkg_versions, get_pkgs, \
-    list_ado_content, UrlInfo, SinglePkgInfo, PkgInfo, \
+    list_ado_content, UrlInfo, SinglePkgInfo, PkgInfo, JsonType, \
     RestException, get_headers_per_file
 
 
 class MockResponse:
     """Mock response object for requests.get."""
 
-    def __init__(self, json_data, ok=True, status_code=200):
+    def __init__(self, json_data: object, ok: bool = True,
+                 status_code: int = 200) -> None:
         """Create a MockResponse object.
 
         @param json_data  The JSON data to return.
@@ -30,11 +32,11 @@ class MockResponse:
         self.ok = ok
         self.status_code = status_code
 
-    def json(self):
+    def json(self) -> object:
         """Return the JSON data."""
         return self.json_data
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return string representation."""
         return f'MockResponse({self.status_code})'
 
@@ -74,7 +76,9 @@ class MockResponse:
                              'pkg2-2.0.0.tar.gz'],
                             ['pkg2', 'pkg2', '2.1.0', '2.4', 'wheel',
                              'pkg2-2.1.0.whl']])])
-def test_print_pkgs_ok1(capsys, pkgs, expected_rows):
+def test_print_pkgs_ok1(capsys: pytest.CaptureFixture[str],
+                        pkgs: list[PkgInfo],
+                        expected_rows: list[list[str]]) -> None:
     """Test OK cases of print_pkgs."""
     with TemporaryDirectory() as dirname:
         file_name = dirname + '/output.csv'
@@ -89,7 +93,7 @@ def test_print_pkgs_ok1(capsys, pkgs, expected_rows):
         assert f'Wrote results to {file_name}' in err
 
 
-def test_print_pkgs_empty(capsys):
+def test_print_pkgs_empty(capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_pkgs with empty package list."""
     with TemporaryDirectory() as dirname:
         file_name = dirname + '/output.csv'
@@ -120,7 +124,8 @@ def test_print_pkgs_empty(capsys):
                            'Basic ' +
                            base64.b64encode(
                                ':abc-def-ghi'.encode()).decode())])
-def test_get_headers_ok1(capsys, pat_content, expected_auth):
+def test_get_headers_ok1(capsys: pytest.CaptureFixture[str],
+                         pat_content: str, expected_auth: str) -> None:
     """Test OK cases of get_headers."""
     get_headers_per_file.clear()
     with TemporaryDirectory() as dirname:
@@ -138,16 +143,16 @@ def test_get_headers_ok1(capsys, pat_content, expected_auth):
         assert '' == err
 
 
-def test_get_headers_none(capsys):
+def test_get_headers_none(capsys: pytest.CaptureFixture[str]) -> None:
     """Test get_headers with None pat_file."""
-    headers = get_headers(pat_file=None)
+    headers = get_headers(pat_file=cast(str, None))
     assert headers == {}
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
 
 
-def test_get_headers_not_found(capsys):
+def test_get_headers_not_found(capsys: pytest.CaptureFixture[str]) -> None:
     """Test get_headers with non-existent file."""
     with pytest.raises(SystemExit) as exc:
         _ = get_headers(pat_file='/nonexistent/file.txt')
@@ -162,12 +167,16 @@ def test_get_headers_not_found(capsys):
                           ({'value': [1, 2, 3]}, 'http://example.com'),
                           ({'name': 'test', 'version': '1.0'},
                            'https://test.org/api')])
-def test_get_from_rest_ok1(capsys, monkeypatch, json_data, url):
+def test_get_from_rest_ok1(capsys: pytest.CaptureFixture[str],
+                           monkeypatch: pytest.MonkeyPatch,
+                           json_data: dict[str, object],
+                           url: str) -> None:
     """Test OK cases of get_from_rest."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -190,12 +199,15 @@ def test_get_from_rest_ok1(capsys, monkeypatch, json_data, url):
                          [(404, 'http://test.com/api'),
                           (500, 'http://example.com'),
                           (403, 'https://test.org/api')])
-def test_get_from_rest_nok1(capsys, monkeypatch, status_code, url):
+def test_get_from_rest_nok1(capsys: pytest.CaptureFixture[str],
+                            monkeypatch: pytest.MonkeyPatch,
+                            status_code: int, url: str) -> None:
     """Test not OK cases of get_from_rest."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -220,12 +232,16 @@ def test_get_from_rest_nok1(capsys, monkeypatch, status_code, url):
                            'http://test.com/api'),
                           ([{'name': 'test'}], 'http://example.com'),
                           ([], 'https://test.org/api')])
-def test_get_value_from_rest_ok1(capsys, monkeypatch, value_data, url):
+def test_get_value_from_rest_ok1(capsys: pytest.CaptureFixture[str],
+                                 monkeypatch: pytest.MonkeyPatch,
+                                 value_data: list[dict[str, str]],
+                                 url: str) -> None:
     """Test OK cases of get_value_from_rest."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -254,13 +270,16 @@ def test_get_value_from_rest_ok1(capsys, monkeypatch, value_data, url):
       'packages', 'xyz-789'),
      ([{'fullyQualifiedName': 'my-feed', 'id': 'id-1'}],
       'my-feed', 'id-1')])
-def test_get_feed_id_ok1(capsys, monkeypatch, feeds_data, lookup_name,
-                         expected_id):
+def test_get_feed_id_ok1(capsys: pytest.CaptureFixture[str],
+                         monkeypatch: pytest.MonkeyPatch,
+                         feeds_data: list[dict[str, str]],
+                         lookup_name: str, expected_id: str) -> None:
     """Test OK cases of get_feed_id."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -289,12 +308,16 @@ def test_get_feed_id_ok1(capsys, monkeypatch, feeds_data, lookup_name,
       'nonexistent'),
      ([{'fullyQualifiedName': 'test-feed', 'id': 'abc-def-123'}],
       'packages')])
-def test_get_feed_id_nok1(capsys, monkeypatch, feeds_data, lookup_name):
+def test_get_feed_id_nok1(capsys: pytest.CaptureFixture[str],
+                          monkeypatch: pytest.MonkeyPatch,
+                          feeds_data: list[dict[str, str]],
+                          lookup_name: str) -> None:
     """Test not OK cases of get_feed_id."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -325,7 +348,9 @@ def test_get_feed_id_nok1(capsys, monkeypatch, feeds_data, lookup_name):
                            'version', '1.0'),
                           ({'Name': 'pkg', 'Version': '2.0'},
                            'Name', 'pkg')])
-def test_get_from_meta_ok1(capsys, meta, key, expected):
+def test_get_from_meta_ok1(capsys: pytest.CaptureFixture[str],
+                           meta: dict[str, JsonType], key: str,
+                           expected: str) -> None:
     """Test OK cases of get_from_meta."""
     ret = get_from_meta(meta=deepcopy(meta), key=deepcopy(key))
     assert ret == expected
@@ -338,7 +363,9 @@ def test_get_from_meta_ok1(capsys, meta, key, expected):
                          [({'name': 'test'}, 'version'),
                           ({'Name': 'pkg'}, 'Version'),
                           ({}, 'name')])
-def test_get_from_meta_missing_key(capsys, meta, key):
+def test_get_from_meta_missing_key(capsys: pytest.CaptureFixture[str],
+                                   meta: dict[str, JsonType],
+                                   key: str) -> None:
     """Test get_from_meta with missing key."""
     ret = get_from_meta(meta=deepcopy(meta), key=deepcopy(key))
     assert ret == ''
@@ -357,7 +384,9 @@ def test_get_from_meta_missing_key(capsys, meta, key):
          'data': {'Name': 'pkg', 'Version': '2.0.0',
                   'MetadataVersion': '2.4'}}},
       ('pkg', '2.0.0', '2.4'))])
-def test_parse_meta_ok1(capsys, ver, expected):
+def test_parse_meta_ok1(capsys: pytest.CaptureFixture[str],
+                        ver: dict[str, JsonType],
+                        expected: tuple[str, str, str]) -> None:
     """Test OK cases of parse_meta."""
     ret = parse_meta(ver=deepcopy(ver))
     assert ret == expected
@@ -370,15 +399,19 @@ def test_parse_meta_ok1(capsys, ver, expected):
                          [({'no_protocolMetadata': {}}),
                           ({'protocolMetadata': {}}),
                           ({'protocolMetadata': {'no_data': {}}})])
-def test_parse_meta_nok1(capsys, ver):
+def test_parse_meta_nok1(capsys: pytest.CaptureFixture[str],
+                         ver: dict[str, JsonType]) -> None:
     """Test not OK cases of parse_meta."""
     ret = parse_meta(ver=deepcopy(ver))
     assert ret == ('', '', '')
     out, err = capsys.readouterr()
     assert '' == out
     # May have error messages depending on the case
-    if 'protocolMetadata' in ver and 'data' not in ver['protocolMetadata']:
-        assert 'No data in meta' in err
+    if 'protocolMetadata' in ver:
+        protocol_metadata = ver['protocolMetadata']
+        if isinstance(protocol_metadata, dict) and \
+                'data' not in protocol_metadata:
+            assert 'No data in meta' in err
 
 
 @pytest.mark.parametrize(
@@ -405,8 +438,11 @@ def test_parse_meta_nok1(capsys, ver):
                     metadata_version='2.1',
                     package_type='wheel', file_name='test.whl'))])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_parse_fileinfo_ok1(capsys, pfile, name, version, metaversion,
-                            include_types, expected):
+def test_parse_fileinfo_ok1(capsys: pytest.CaptureFixture[str],
+                            pfile: dict[str, JsonType], name: str,
+                            version: str, metaversion: str,
+                            include_types: list[str],
+                            expected: SinglePkgInfo) -> None:
     """Test OK cases of parse_fileinfo."""
     ret = parse_fileinfo(pfile=deepcopy(pfile), name=deepcopy(name),
                          version=deepcopy(version),
@@ -437,8 +473,10 @@ def test_parse_fileinfo_ok1(capsys, pfile, name, version, metaversion,
            'data': {}}},
       'test', '1.0.0', '2.1', ['wheel'])])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_parse_fileinfo_nok1(capsys, pfile, name, version, metaversion,
-                             include_types):
+def test_parse_fileinfo_nok1(capsys: pytest.CaptureFixture[str],
+                             pfile: dict[str, JsonType], name: str,
+                             version: str, metaversion: str,
+                             include_types: list[str]) -> None:
     """Test not OK cases of parse_fileinfo."""
     ret = parse_fileinfo(pfile=deepcopy(pfile), name=deepcopy(name),
                          version=deepcopy(version),
@@ -482,13 +520,17 @@ def test_parse_fileinfo_nok1(capsys, pfile, name, version, metaversion,
                    'protocolMetadata': {
                        'data': {'FileType': 'wheel'}}}]}],
       ['wheel'], 2)])
-def test_get_pkg_versions_ok1(capsys, monkeypatch, versions_data,
-                              include_types, expected_len):
+def test_get_pkg_versions_ok1(capsys: pytest.CaptureFixture[str],
+                              monkeypatch: pytest.MonkeyPatch,
+                              versions_data: list[dict[str, JsonType]],
+                              include_types: list[str],
+                              expected_len: int) -> None:
     """Test OK cases of get_pkg_versions."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -533,14 +575,17 @@ def test_get_pkg_versions_ok1(capsys, monkeypatch, versions_data,
       ['wheel'], 1),
      ([{}],
       ['wheel'], 0)])
-def test_get_pkg_versions_empty_name_version(capsys, monkeypatch,
-                                             versions_data,
-                                             include_types, expected_len):
+def test_get_pkg_versions_empty_name_version(
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        versions_data: list[dict[str, JsonType]],
+        include_types: list[str], expected_len: int) -> None:
     """Test get_pkg_versions with empty name and version."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -582,14 +627,18 @@ def test_get_pkg_versions_empty_name_version(capsys, monkeypatch,
                   'MetadataVersion': '2.4'}}}],
       [], 0, 'No files in ver name=mypackage')])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_get_pkg_versions_no_files(capsys, monkeypatch, versions_data,
-                                   include_types, expected_len,
-                                   expected_err):
+def test_get_pkg_versions_no_files(capsys: pytest.CaptureFixture[str],
+                                   monkeypatch: pytest.MonkeyPatch,
+                                   versions_data: list[dict[str, JsonType]],
+                                   include_types: list[str],
+                                   expected_len: int,
+                                   expected_err: str) -> None:
     """Test get_pkg_versions when files key is missing."""
     get_headers_per_file.clear()
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -624,14 +673,19 @@ def test_get_pkg_versions_no_files(capsys, monkeypatch, versions_data,
       [{'fullyQualifiedName': 'packages', 'id': 'feed-id'}],
       [], 2)])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_get_pkgs_ok1(capsys, monkeypatch, packages_data, feeds_data,
-                      include_types, expected_len):
+def test_get_pkgs_ok1(capsys: pytest.CaptureFixture[str],
+                      monkeypatch: pytest.MonkeyPatch,
+                      packages_data: list[dict[str, str]],
+                      feeds_data: list[dict[str, str]],
+                      include_types: list[str],
+                      expected_len: int) -> None:
     """Test OK cases of get_pkgs."""
     get_headers_per_file.clear()
     call_count = {'count': 0}
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -673,14 +727,19 @@ def test_get_pkgs_ok1(capsys, monkeypatch, packages_data, feeds_data,
       None, [])])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 # pylint: disable=too-many-locals
-def test_get_pkgs_with_project(capsys, monkeypatch, packages_data,
-                               feeds_data, project, include_types):
+def test_get_pkgs_with_project(capsys: pytest.CaptureFixture[str],
+                               monkeypatch: pytest.MonkeyPatch,
+                               packages_data: list[dict[str, str]],
+                               feeds_data: list[dict[str, str]],
+                               project: str | None,
+                               include_types: list[str]) -> None:
     """Test get_pkgs with project parameter."""
     get_headers_per_file.clear()
     urls_called = []
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -715,7 +774,8 @@ def test_get_pkgs_with_project(capsys, monkeypatch, packages_data,
 
 
 # pylint: disable=too-many-locals
-def test_list_ado_content_ok1(capsys, monkeypatch):
+def test_list_ado_content_ok1(capsys: pytest.CaptureFixture[str],
+                              monkeypatch: pytest.MonkeyPatch) -> None:
     """Test OK case of list_ado_content."""
     get_headers_per_file.clear()
     packages_data = [{'url': 'http://test.com/pkg1',
@@ -731,7 +791,8 @@ def test_list_ado_content_ok1(capsys, monkeypatch):
                        'data': {'FileType': 'wheel'}}}]}]
 
     # pylint: disable=unused-argument
-    def mock_get(url, headers, timeout, verify):
+    def mock_get(url: str, headers: dict[str, str], timeout: float,
+                 verify: bool) -> MockResponse:
         """Mock requests.get."""
         assert timeout is not None
         assert verify is False
@@ -773,7 +834,7 @@ def test_list_ado_content_ok1(capsys, monkeypatch):
         assert 'collection: col1' in err
 
 
-def test_rest_exception():
+def test_rest_exception() -> None:
     """Test RestException can be created and raised."""
     exc = RestException('test error')
     assert str(exc) == 'test error'
@@ -782,7 +843,7 @@ def test_rest_exception():
     assert 'test message' in str(exc_info.value)
 
 
-def test_single_pkg_info():
+def test_single_pkg_info() -> None:
     """Test SinglePkgInfo named tuple."""
     pkg = SinglePkgInfo(name='test', version='1.0.0',
                         metadata_version='2.1',
@@ -795,7 +856,7 @@ def test_single_pkg_info():
     assert pkg.file_name == 'test-1.0.0.whl'
 
 
-def test_pkg_info():
+def test_pkg_info() -> None:
     """Test PkgInfo named tuple."""
     single = SinglePkgInfo(name='test', version='1.0.0',
                            metadata_version='2.1',
@@ -807,7 +868,7 @@ def test_pkg_info():
     assert pkg.versions[0] == single
 
 
-def test_url_info():
+def test_url_info() -> None:
     """Test UrlInfo named tuple."""
     url_info = UrlInfo(instance='test.com', collection='col1',
                        pat_file='/path/to/pat.txt')

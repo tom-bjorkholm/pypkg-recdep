@@ -3,9 +3,10 @@
 
 # Copyright (c) 2025 Tom Björkholm
 # MIT License
+# pylint: disable=too-many-lines
 
 from copy import deepcopy
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, cast
 from tempfile import TemporaryDirectory
 import re
 import shutil
@@ -13,7 +14,7 @@ import pickle
 from tarfile import TarInfo
 import pytest
 from requests import HTTPError
-from pypi_simple import NoDigestsError, DistributionPackage, \
+from pypi_simple import PyPISimple, NoDigestsError, DistributionPackage, \
     ProjectPage, NoMetadataError, DigestMismatchError
 from packaging.version import Version
 from packaging.requirements import Requirement
@@ -34,7 +35,7 @@ class BStr(str):
     """Type Bstr based on str for testing."""
 
 
-@pytest.mark.parametrize('typ', [AStr, BStr, TarInfo])
+@pytest.mark.parametrize('typ', [AStr, BStr])
 @pytest.mark.parametrize('intar,meta,res,msgs,pkgname',
                          [(['a', 'b'], ['a'], ['a'], None, 'my_pkg'),
                           (['x', 'b', 'c', 'd'], ['b', 'd'], ['b', 'd'],
@@ -49,10 +50,14 @@ class BStr(str):
                            ['a/c', 'e/f'],
                            ['Failed to find license text file xx in package.',
                             'Package: pkg_d'], 'pkg_d')])
-def test_select_giv_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                         intar, meta, res, msgs, typ, pkgname):
-    """Test OK cases of select_given_lic_file."""
-    ret = select_given_lic_file(files_in_tar=list(map(typ, deepcopy(intar))),
+def test_select_giv_lic1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                         intar: list[str], meta: list[str], res: list[str],
+                         msgs: Optional[list[str]],
+                         typ: type[AStr] | type[BStr],
+                         pkgname: str) -> None:
+    """Test OK cases of select_given_lic_file with string-based types."""
+    files_in_tar = list(map(typ, deepcopy(intar)))
+    ret = select_given_lic_file(files_in_tar=files_in_tar,
                                 meta_lic_files=deepcopy(meta),
                                 pkgid=pkgname, _tinfo=typ('x'))
     assert len(res) == len(ret)
@@ -71,7 +76,47 @@ def test_select_giv_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-
         assert '' == err
 
 
-@pytest.mark.parametrize('typ', [AStr, BStr, TarInfo])
+@pytest.mark.parametrize('intar,meta,res,msgs,pkgname',
+                         [(['a', 'b'], ['a'], ['a'], None, 'my_pkg'),
+                          (['x', 'b', 'c', 'd'], ['b', 'd'], ['b', 'd'],
+                           None, 'pkg_a'),
+                          (['a/c', 'd1', 'd/c', 'e/f'], ['c', 'f'],
+                           ['a/c', 'e/f'], None, 'pkg_b'),
+                          (['a', 'c'], ['d', 'e'], [],
+                           ['Failed to find license text file d in package.',
+                            'Failed to find license text file e in package.',
+                            'Package: pkg_c'], 'pkg_c'),
+                          (['a/c', 'd1', 'd/c', 'e/f'], ['c', 'xx', 'f'],
+                           ['a/c', 'e/f'],
+                           ['Failed to find license text file xx in package.',
+                            'Package: pkg_d'], 'pkg_d')])
+def test_select_giv_lic1_tarinfo(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                 intar: list[str], meta: list[str],
+                                 res: list[str],
+                                 msgs: Optional[list[str]],
+                                 pkgname: str) -> None:
+    """Test OK cases of select_given_lic_file with TarInfo."""
+    files_in_tar = [TarInfo(name=elem) for elem in deepcopy(intar)]
+    ret = select_given_lic_file(files_in_tar=files_in_tar,
+                                meta_lic_files=deepcopy(meta),
+                                pkgid=pkgname, _tinfo=TarInfo())
+    assert len(res) == len(ret)
+    retval: list[str] = []
+    for retelem in ret:
+        retval.append(_fname_to_str(retelem))
+    assert retval == res
+    out, err = capsys.readouterr()
+    if ret:
+        assert isinstance(ret[0], TarInfo)
+    assert '' == out
+    if msgs:
+        for m in msgs:
+            assert m in err
+    else:
+        assert '' == err
+
+
+@pytest.mark.parametrize('typ', [AStr, BStr])
 @pytest.mark.parametrize('intar,res,msgs,pkgname',
                          [([], [],
                            ['Failed to find license text in package (no named',
@@ -82,10 +127,13 @@ def test_select_giv_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-
                            ['LICENSE.txt'], None, 'pkg_b'),
                           (['abc', 'd/efg', 'h/LICENSE', 'i/COPYING'],
                            ['h/LICENSE'], None, 'pkg_c')])
-def test_select_default_lic1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                             intar, res, msgs, pkgname, typ):
-    """Test OK cases of select_default_lic_file."""
-    ret = select_default_lic_file(files_in_tar=deepcopy(list(map(typ, intar))),
+def test_select_default_lic1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                             intar: list[str], res: list[str],
+                             msgs: Optional[list[str]], pkgname: str,
+                             typ: type[AStr] | type[BStr]) -> None:
+    """Test OK cases of select_default_lic_file with string-based types."""
+    files_in_tar = list(map(typ, deepcopy(intar)))
+    ret = select_default_lic_file(files_in_tar=files_in_tar,
                                   pkgid=pkgname, _tinfo=typ('a'))
     assert len(res) == len(ret)
     retval: list[str] = []
@@ -103,13 +151,51 @@ def test_select_default_lic1(capsys,  # pylint: disable=too-many-arguments,too-m
         assert '' == err
 
 
+@pytest.mark.parametrize('intar,res,msgs,pkgname',
+                         [([], [],
+                           ['Failed to find license text in package (no named',
+                            'Package: abc_d'], 'abc_d'),
+                          (['COPYING', 'a/LICENSE.txt'], ['COPYING'],
+                           None, 'pkg_a'),
+                          (['COPYING', 'LICENSE', 'LICENSE.txt'],
+                           ['LICENSE.txt'], None, 'pkg_b'),
+                          (['abc', 'd/efg', 'h/LICENSE', 'i/COPYING'],
+                           ['h/LICENSE'], None, 'pkg_c')])
+def test_select_default_lic1_tarinfo(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                                     intar: list[str], res: list[str],
+                                     msgs: Optional[list[str]],
+                                     pkgname: str) -> None:
+    """Test OK cases of select_default_lic_file with TarInfo."""
+    files_in_tar = [TarInfo(name=elem) for elem in deepcopy(intar)]
+    ret = select_default_lic_file(files_in_tar=files_in_tar,
+                                  pkgid=pkgname, _tinfo=TarInfo())
+    assert len(res) == len(ret)
+    retval: list[str] = []
+    for retelem in ret:
+        retval.append(_fname_to_str(retelem))
+    assert retval == res
+    out, err = capsys.readouterr()
+    if ret:
+        assert isinstance(ret[0], TarInfo)
+    assert '' == out
+    if msgs:
+        for m in msgs:
+            assert m in err
+    else:
+        assert '' == err
+
+
 @pytest.mark.parametrize('typ', [AStr, BStr])
 @pytest.mark.parametrize('ftar,mlic,pkgi,given',
                          [([], [], 'abc', True),
                           (['a', 'c/d'], None, 'efg', False),
                           (['a/b', 'c/d'], ['d'], 'hjk', True)])
-def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                              monkeypatch, ftar, mlic, pkgi, typ, given):
+def test_select_liv_filnames1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              monkeypatch: pytest.MonkeyPatch,
+                              ftar: list[str], mlic: Optional[list[str]],
+                              pkgi: str,
+                              typ: type[AStr] | type[BStr],
+                              given: bool) -> None:
     """Test selection of function to get license file names."""
     given_called = 0
     def_called = 0
@@ -123,6 +209,7 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
         assert meta_lic_files == mlic
         assert pkgid == pkgi
         assert _tinfo == typ('a')
+        return []
 
     def sel_def_lic_file(files_in_tar: list[T],
                          pkgid: str, _tinfo: T) -> list[T]:
@@ -132,6 +219,7 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
         assert files_in_tar == ftar
         assert pkgid == pkgi
         assert _tinfo == typ('a')
+        return []
 
     mod = 'pypkg_recdep.find_pypi_deps.'
     monkeypatch.setattr(mod + 'select_given_lic_file', sel_giv_lic_file)
@@ -171,8 +259,11 @@ def test_select_liv_filnames1(capsys,  # pylint: disable=too-many-arguments,too-
                             'Package: pkg_d'], 'pkg_d'),
                           (['COPYING', 'a/LICENSE.txt'], None, ['COPYING'],
                            None, 'pkg_a'),])
-def test_select_lic_filnames2(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                              intar, meta, res, msgs, typ, pkgname):
+def test_select_lic_filnames2(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              intar: list[str], meta: Optional[list[str]],
+                              res: list[str], msgs: Optional[list[str]],
+                              typ: type[AStr] | type[BStr],
+                              pkgname: str) -> None:
     """Test OK cases of select_lic_file_names."""
     ret = select_lic_file_names(files_in_tar=deepcopy(list(map(typ, intar))),
                                 meta_lic_files=deepcopy(meta),
@@ -202,8 +293,10 @@ def test_select_lic_filnames2(capsys,  # pylint: disable=too-many-arguments,too-
                            '',
                            'Failed to find license text file ' +
                            'all_files.txt in package.\nPackage: pkg7\n')])
-def test_get_lic_test_zip(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                          fname, licfnames, pkgid, restxt, errtxt):
+def test_get_lic_test_zip(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                          fname: str, licfnames: Optional[list[str]],
+                          pkgid: str, restxt: str,
+                          errtxt: str) -> None:
     """Test OK and error cases of get_lic_text_zip."""
     with TemporaryDirectory() as dirname:
         fullfname = dirname + '/' + deepcopy(fname)
@@ -229,8 +322,10 @@ def test_get_lic_test_zip(capsys,  # pylint: disable=too-many-arguments,too-many
                            '',
                            'Failed to find license text file ' +
                            'all_files.txt in package.\nPackage: pkg7\n')])
-def test_get_lic_test_tar(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                          fname, licfnames, pkgid, restxt, errtxt):
+def test_get_lic_test_tar(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                          fname: str, licfnames: Optional[list[str]],
+                          pkgid: str, restxt: str,
+                          errtxt: str) -> None:
     """Test OK and error cases of get_lic_text_zip."""
     with TemporaryDirectory() as dirname:
         fullfname = dirname + '/' + deepcopy(fname)
@@ -248,12 +343,14 @@ def test_get_lic_test_tar(capsys,  # pylint: disable=too-many-arguments,too-many
 class MockClient():  # pylint: disable=too-few-public-methods
     """Mock PyPISImple client."""
 
-    def __init__(self, file, exception):
+    def __init__(self, file: str,
+                 exception: Optional[Exception]) -> None:
         """Create a Mocked PYPISimple client object."""
         self.file = file
         self.exception = exception
 
-    def download_package(self, pkg, path, timeout):
+    def download_package(self, pkg: DistributionPackage, path: str,
+                         timeout: float) -> None:
         """Get a file as if was downloaded."""
         if self.exception is not None:
             raise self.exception
@@ -265,7 +362,8 @@ class MockClient():  # pylint: disable=too-few-public-methods
 class MockPkg():  # pylint: disable=too-few-public-methods
     """Mock Package."""
 
-    def __init__(self, filename, project=None, version='1.2'):
+    def __init__(self, filename: str, project: Optional[str] = None,
+                 version: str = '1.2') -> None:
         """Create MockPkg object."""
         self.filename = filename
         if project is None:
@@ -292,13 +390,17 @@ class MockPkg():  # pylint: disable=too-few-public-methods
                            'This text is in subdir/c.md 567\n'),
                           ('pkgtest.zip', 'c.zip', None,
                            'This text is in b.md 345\n',),])
-def test_get_license_text_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                              fname, toname, licfnames, restxt):
+def test_get_license_text_ok1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                              fname: str, toname: str,
+                              licfnames: Optional[list[str]],
+                              restxt: str) -> None:
     """Test OK cases for get_license_text."""
     mclient = MockClient(file='test/test_pypkg_recdep/' + fname,
                          exception=None)
     mpkg = MockPkg(filename=toname)
-    ret = get_license_text(client=mclient, pkg=mpkg, lic_files=licfnames)
+    ret = get_license_text(client=cast(PyPISimple, mclient),
+                           pkg=cast(DistributionPackage, mpkg),
+                           lic_files=licfnames)
     out, err = capsys.readouterr()
     assert restxt == ret
     assert '' == out
@@ -314,11 +416,15 @@ def test_get_license_text_ok1(capsys,  # pylint: disable=too-many-arguments,too-
                            ['a.txt'], NoDigestsError('text 2'),
                            MockPkg(filename='a.tgz',
                                    project='p2', version='1.2'))])
-def test_get_license_text_exc1(capsys, fname, licfnames, exc, pkg):
+def test_get_license_text_exc1(capsys: pytest.CaptureFixture[str],
+                               fname: str,
+                               licfnames: list[str],
+                               exc: Exception, pkg: MockPkg) -> None:
     """Test exception cases for get_license_text."""
     mclient = MockClient(file='test/test_pypkg_recdep/' + fname,
                          exception=deepcopy(exc))
-    ret = get_license_text(client=mclient, pkg=deepcopy(pkg),
+    ret = get_license_text(client=cast(PyPISimple, mclient),
+                           pkg=cast(DistributionPackage, deepcopy(pkg)),
                            lic_files=licfnames)
     out, err = capsys.readouterr()
     assert '' == out
@@ -328,12 +434,13 @@ def test_get_license_text_exc1(capsys, fname, licfnames, exc, pkg):
     assert str(exc) in err
 
 
-def test_get_license_text_nok1(capsys):
+def test_get_license_text_nok1(capsys: pytest.CaptureFixture[str]) -> None:
     """Test not OK case for get_license_text."""
     mclient = MockClient(file='test/test_pypkg_recdep/pkgtest2.tar.gz',
                          exception=None)
     mpkg = MockPkg(filename='a.txt')
-    ret = get_license_text(client=mclient, pkg=deepcopy(mpkg),
+    ret = get_license_text(client=cast(PyPISimple, mclient),
+                           pkg=cast(DistributionPackage, deepcopy(mpkg)),
                            lic_files=None)
     out, err = capsys.readouterr()
     assert '' == out
@@ -342,7 +449,8 @@ def test_get_license_text_nok1(capsys):
 
 
 @pytest.mark.parametrize('ver', ['3.13', '3.14'])
-def test_get_environment_ok(capsys, ver):
+def test_get_environment_ok(capsys: pytest.CaptureFixture[str],
+                            ver: str) -> None:
     """Test OK cases of get_environment."""
     version = Version(ver)
     ret = get_environment(pyversion=version)
@@ -357,7 +465,7 @@ def test_get_environment_ok(capsys, ver):
     assert '' == err
 
 
-def test_get_requirements_ok1(capsys):
+def test_get_requirements_ok1(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 1 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -383,7 +491,7 @@ def test_get_requirements_ok1(capsys):
         assert ret[12].name == 'wheel'
 
 
-def test_get_requirements_ok2(capsys):
+def test_get_requirements_ok2(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 2 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/jai_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -399,7 +507,7 @@ def test_get_requirements_ok2(capsys):
         assert ret[1].name == 'inflect'
 
 
-def test_get_requirements_ok3(capsys):
+def test_get_requirements_ok3(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 3 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/pyt_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -420,7 +528,7 @@ def test_get_requirements_ok3(capsys):
         assert ret[3].name == 'pygments'
 
 
-def test_get_requirements_ok4(capsys):
+def test_get_requirements_ok4(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 4 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/pyt_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -443,7 +551,7 @@ def test_get_requirements_ok4(capsys):
         assert ret[5].name == 'tomli'
 
 
-def test_get_requirements_ok5(capsys):
+def test_get_requirements_ok5(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 5 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -456,7 +564,7 @@ def test_get_requirements_ok5(capsys):
         assert len(ret) == 0
 
 
-def test_get_requirements_ok6(capsys):
+def test_get_requirements_ok6(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 6 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/elt_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -469,7 +577,7 @@ def test_get_requirements_ok6(capsys):
         assert len(ret) == 0
 
 
-def test_get_requirements_ok7(capsys):
+def test_get_requirements_ok7(capsys: pytest.CaptureFixture[str]) -> None:
     """Test 7 get_rewuirememts from raw in stored file."""
     with open(file='test/test_pypkg_recdep/jai_raw.pkl', mode='rb') as file:
         raw = pickle.load(file=file)
@@ -505,12 +613,14 @@ def test_get_requirements_ok7(capsys):
                                           ('bar', '2.0'),
                                           ('foo', '3.1.5')],
                            None)])
-def test_find_fullfill_req_ok1(capsys, req, pkgs, res):
+def test_find_fullfill_req_ok1(capsys: pytest.CaptureFixture[str], req: str,
+                               pkgs: list[tuple[str, str]],
+                               res: Optional[tuple[str, str]]) -> None:
     """Test 1 of OK cases of find_fullfill_req."""
     packages: Pkgs = {}
     for name, ver in deepcopy(pkgs):
         key = PkgKey(name=deepcopy(name), version=deepcopy(ver))
-        info = PkgInfo(key=key)
+        info = cast(PkgInfo, {'key': key})
         packages[key] = info
     ret = find_fulfill_req(req=Requirement(deepcopy(req)), pkgs=packages)
     out, err = capsys.readouterr()
@@ -539,7 +649,9 @@ def test_find_fullfill_req_ok1(capsys, req, pkgs, res):
                            '3.10',
                            [('ab', '2.3.4'),
                             ('ef', '5.2')])])
-def test_pyoks_ok1(capsys, pkgs, ver, res):
+def test_pyoks_ok1(capsys: pytest.CaptureFixture[str],
+                   pkgs: list[tuple[str, str, Optional[str]]], ver: str,
+                   res: list[tuple[str, str]]) -> None:
     """Test variation 1 OK cases for py_oks."""
     dist_list: list[DistributionPackage] = []
     for (pname, pver, pyreq) in deepcopy(pkgs):
@@ -548,7 +660,7 @@ def test_pyoks_ok1(capsys, pkgs, ver, res):
                                              requires_python=pyreq,
                                              package_type='whl', digests={},
                                              has_sig=False))
-    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    ret = py_oks(pkgs=dist_list, pyversion=Version(ver))
     out, err = capsys.readouterr()
     assert len(ret) == len(res)
     for retelem, reselem in zip(ret, deepcopy(res)):
@@ -563,7 +675,9 @@ def test_pyoks_ok1(capsys, pkgs, ver, res):
                            '3.13'),
                           ([('cd', '3.4.5', '>= 3.12')],
                            '3.10')])
-def test_pyoks_nok1(capsys, pkgs, ver):
+def test_pyoks_nok1(capsys: pytest.CaptureFixture[str],
+                    pkgs: list[tuple[str, str, Optional[str]]],
+                    ver: str) -> None:
     """Test variation 1 not OK cases for py_oks."""
     dist_list: list[DistributionPackage] = []
     p_name: Optional[str] = None
@@ -575,7 +689,7 @@ def test_pyoks_nok1(capsys, pkgs, ver):
                                              package_type='whl', digests={},
                                              has_sig=False))
     with pytest.raises(NoMatchingPackage) as exc:
-        _ = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+        _ = py_oks(pkgs=dist_list, pyversion=Version(ver))
     assert f'No package of {p_name} that can run on Python version {ver}.' in \
         str(exc)
     out, err = capsys.readouterr()
@@ -594,7 +708,8 @@ def test_pyoks_nok1(capsys, pkgs, ver):
                           ('!=3.5.*', '!=3.5.*'),  # Should NOT be changed
                           ('>=3.5', '>=3.5'),  # No change needed
                           ('>=3.5, <4.0', '>=3.5, <4.0')])  # No change needed
-def test_fix_invalid_version_specifier(capsys, spec, expected):
+def test_fix_invalid_version_specifier(capsys: pytest.CaptureFixture[str],
+                                       spec: str, expected: str) -> None:
     """Test _fix_invalid_version_specifier helper function."""
     result = _fix_invalid_version_specifier(spec)
     out, err = capsys.readouterr()
@@ -611,7 +726,10 @@ def test_fix_invalid_version_specifier(capsys, spec, expected):
                           ([('cd', '1.0', '>=3.5, <4.*')],
                            '3.12',
                            ['1.0'])])
-def test_pyoks_fixable_requires_python(capsys, pkgs, ver, exp_vers):
+def test_pyoks_fixable_requires_python(
+        capsys: pytest.CaptureFixture[str],
+        pkgs: list[tuple[str, str, Optional[str]]], ver: str,
+        exp_vers: list[str]) -> None:
     """Test py_oks with fixable requires_python (PEP 440 violations).
 
     Some older packages have invalid version specifiers like '>=3.5.*'
@@ -627,7 +745,7 @@ def test_pyoks_fixable_requires_python(capsys, pkgs, ver, exp_vers):
                                              requires_python=pyreq,
                                              package_type='whl', digests={},
                                              has_sig=False))
-    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    ret = py_oks(pkgs=dist_list, pyversion=Version(ver))
     out, err = capsys.readouterr()
     assert '' == out
     # Should NOT have printed a warning (the specifier was fixed)
@@ -645,7 +763,10 @@ def test_pyoks_fixable_requires_python(capsys, pkgs, ver, exp_vers):
                           ([('cd', '1.0', '>=3.5, invalid')],  # Invalid part
                            '3.13',
                            ['1.0'])])
-def test_pyoks_truly_invalid_requires_python(capsys, pkgs, ver, exp_vers):
+def test_pyoks_truly_invalid_requires_python(
+        capsys: pytest.CaptureFixture[str],
+        pkgs: list[tuple[str, str, Optional[str]]], ver: str,
+        exp_vers: list[str]) -> None:
     """Test py_oks with truly invalid requires_python.
 
     For specifiers that cannot be fixed, include optimistically with warning.
@@ -658,7 +779,7 @@ def test_pyoks_truly_invalid_requires_python(capsys, pkgs, ver, exp_vers):
                                              requires_python=pyreq,
                                              package_type='whl', digests={},
                                              has_sig=False))
-    ret = py_oks(pkgs=dist_list, pyversion=deepcopy(ver))
+    ret = py_oks(pkgs=dist_list, pyversion=Version(ver))
     out, err = capsys.readouterr()
     assert '' == out
     # Should have printed a warning about invalid requires_python
@@ -677,11 +798,12 @@ def test_pyoks_truly_invalid_requires_python(capsys, pkgs, ver, exp_vers):
                           ('3.13', ['0.5', '0.6', '0.6.2', '0.7.0',
                                     '0.7.1', '0.7.3', '0.7.5',
                                     '0.7.13', '0.8.3', '0.8.5'])])
-def test_pyoks_ok2(capsys, pyver, pkgvers):
+def test_pyoks_ok2(capsys: pytest.CaptureFixture[str], pyver: str,
+                   pkgvers: list[str]) -> None:
     """Test variation 2 OK cases for py_oks."""
     with open(file='test/test_pypkg_recdep/elt_page.pkl', mode='rb') as file:
-        page: ProjectPage = pickle.load(file=file)
-        ret = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        project_page: ProjectPage = pickle.load(file=file)
+        ret = py_oks(pkgs=project_page.packages, pyversion=Version(pyver))
         out, err = capsys.readouterr()
         for pkg in ret:
             assert pkg.version in pkgvers
@@ -695,12 +817,12 @@ def test_pyoks_ok2(capsys, pyver, pkgvers):
 
 
 @pytest.mark.parametrize('pyver', ['3.9', '2.7'])
-def test_pyoks_nok2(capsys, pyver):
+def test_pyoks_nok2(capsys: pytest.CaptureFixture[str], pyver: str) -> None:
     """Test variation 2 not OK cases for py_oks."""
     with open(file='test/test_pypkg_recdep/elt_page.pkl', mode='rb') as file:
-        page: ProjectPage = pickle.load(file=file)
+        project_page: ProjectPage = pickle.load(file=file)
         with pytest.raises(NoMatchingPackage) as exc:
-            _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+            _ = py_oks(pkgs=project_page.packages, pyversion=Version(pyver))
         assert 'No package of excel_list_transform that can run on Python ' + \
             f'version {pyver}.' in str(exc)
         out, err = capsys.readouterr()
@@ -710,12 +832,13 @@ def test_pyoks_nok2(capsys, pyver):
 
 @pytest.mark.parametrize('page', ['elt', 'jai', 'pyt'])
 @pytest.mark.parametrize('pyver', ['3.10', '3.13'])
-def test_pyoks_ok3(capsys, page, pyver):
+def test_pyoks_ok3(capsys: pytest.CaptureFixture[str], page: str,
+                   pyver: str) -> None:
     """Test variation 3 OK cases for py_oks."""
     fname = 'test/test_pypkg_recdep/' + deepcopy(page) + '_page.pkl'
     with open(file=fname, mode='rb') as file:
-        page: ProjectPage = pickle.load(file=file)
-        ret = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+        project_page: ProjectPage = pickle.load(file=file)
+        ret = py_oks(pkgs=project_page.packages, pyversion=Version(pyver))
         out, err = capsys.readouterr()
         assert ret is not None
         assert len(ret) > 0
@@ -725,13 +848,14 @@ def test_pyoks_ok3(capsys, page, pyver):
 
 @pytest.mark.parametrize('page', ['elt'])
 @pytest.mark.parametrize('pyver', ['3.1', '2.7'])
-def test_pyoks_nok3(capsys, page, pyver):
+def test_pyoks_nok3(capsys: pytest.CaptureFixture[str], page: str,
+                    pyver: str) -> None:
     """Test variation 3 not OK cases for py_oks."""
     fname = 'test/test_pypkg_recdep/' + deepcopy(page) + '_page.pkl'
     with open(file=fname, mode='rb') as file:
-        page: ProjectPage = pickle.load(file=file)
+        project_page: ProjectPage = pickle.load(file=file)
         with pytest.raises(NoMatchingPackage) as exc:
-            _ = py_oks(pkgs=page.packages, pyversion=deepcopy(pyver))
+            _ = py_oks(pkgs=project_page.packages, pyversion=Version(pyver))
         assert 'No package of excel_list_transform that can run on ' + \
             f'Python version {pyver}.' in str(exc)
         out, err = capsys.readouterr()
@@ -739,7 +863,8 @@ def test_pyoks_nok3(capsys, page, pyver):
         assert '' == err
 
 
-def get_fake_pkglist(pkl_base_name: str, has_meta: list[bool]):
+def get_fake_pkglist(pkl_base_name: str,
+                     has_meta: list[bool]) -> list[DistributionPackage]:
     """Get a fake list of packages."""
     fname = 'test/test_pypkg_recdep/' + deepcopy(pkl_base_name) + '_page.pkl'
     ret: list[DistributionPackage] = []
@@ -760,7 +885,7 @@ class MockMetaSpec(NamedTuple):
     """Spec for one metadata."""
 
     pkl_base: str
-    metaver: str
+    metaver: Optional[str]
     exception: Optional[Exception]
 
 
@@ -777,9 +902,9 @@ class MockMetaClient():  # pylint: disable=too-few-public-methods
         assert pkg is not None
         assert timeout is not None
         if not self.spec:
-            raise NoMetadataError
+            raise NoMetadataError(filename='x.whl', url='http://a.com')
         if len(self.spec) < 1:
-            raise NoMetadataError
+            raise NoMetadataError(filename='x.whl', url='http://a.com')
         this_spec = self.spec.pop(0)
         if this_spec.exception is not None:
             raise this_spec.exception
@@ -808,7 +933,8 @@ NO_META_ERROR = NoMetadataError(filename='a.txt', url='http://a.com')
                            [], None, None, None),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', '2.4', None),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            ['Warning:', 'exceeds the specified maximum'],
                            'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
@@ -817,46 +943,54 @@ NO_META_ERROR = NoMetadataError(filename='a.txt', url='http://a.com')
                            None, 'Metadata-Version: 2.4'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, None),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            None, 'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, None),
-                            MockMetaSpec('elt', '2.4', None)], '2.3',
+                            MockMetaSpec('elt', '2.4', None)],
+                           Version('2.3'),
                            ['Warning:', 'exceeds the specified maximum'],
                            None),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, DIG_MIS_ERROR),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            ['Failed to get metadata for excel_list_transform',
                             'a digest of'],
                            'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, NO_DIG_ERROR),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            ['Failed to get metadata for excel_list_transform',
                             'No digests'],
                            'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, HTTP_ERROR),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            ['Failed to get metadata for excel_list_transform'],
                            'Metadata-Version: 2.2'),
                           ([True, True], 'elt',
                            [MockMetaSpec('elt', None, NO_META_ERROR),
-                            MockMetaSpec('elt', '2.2', None)], '2.3',
+                            MockMetaSpec('elt', '2.2', None)],
+                           Version('2.3'),
                            ['Failed to get metadata for excel_list_transform',
                             'No distribution metadata found'],
                            'Metadata-Version: 2.2')])
-def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+def test_meta_ok_ok1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                      has_metas: list[bool], page_pkl: str,
                      mspecs: list[MockMetaSpec], mver: Optional[Version],
-                     msgs: Optional[list[str]], retstart: Optional[str]):
+                     msgs: Optional[list[str]],
+                     retstart: Optional[str]) -> None:
     """Test first OK cases of meta_ok."""
     reset_warnings()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
-    metaversion = None if mver is None else Version(mver)
-    _, res = meta_ok(client=mock, pkgs=pkgs, metaversion=metaversion)
+    metaversion = mver
+    _, res = meta_ok(client=cast(PyPISimple, mock), pkgs=pkgs,
+                     metaversion=metaversion)
     out, err = capsys.readouterr()
     if not retstart:
         assert not res
@@ -873,17 +1007,20 @@ def test_meta_ok_ok1(capsys,  # pylint: disable=too-many-arguments,too-many-posi
 @pytest.mark.parametrize('has_metas,page_pkl,mspecs,mver',
                          [([True, True], 'elt',
                            [MockMetaSpec('elt', '2.4', None),
-                            MockMetaSpec('elt', '2.6', None)], '2.3')])
-def test_meta_ok_nok1(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                            MockMetaSpec('elt', '2.6', None)],
+                           Version('2.3'))])
+def test_meta_ok_nok1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
                       has_metas: list[bool], page_pkl: str,
-                      mspecs: list[MockMetaSpec], mver: Optional[Version]):
+                      mspecs: list[MockMetaSpec],
+                      mver: Optional[Version]) -> None:
     """Test first not OK cases of meta_ok."""
     reset_warnings()
     mock = MockMetaClient(spec=mspecs)
     pkgs = get_fake_pkglist(pkl_base_name=page_pkl, has_meta=has_metas)
-    metaversion = None if mver is None else Version(mver)
+    metaversion = mver
     with pytest.raises(NoMatchingPackage) as exc:
-        _, _2 = meta_ok(client=mock, pkgs=pkgs, metaversion=metaversion)
+        _, _2 = meta_ok(client=cast(PyPISimple, mock), pkgs=pkgs,
+                        metaversion=metaversion)
     out, err = capsys.readouterr()
     assert 'No packages of excel_list_transform have OK' in str(exc)
     assert '' == out

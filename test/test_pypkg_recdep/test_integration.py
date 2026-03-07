@@ -9,13 +9,22 @@ from tempfile import TemporaryDirectory
 import csv
 import os
 import re
+from typing import Optional, TYPE_CHECKING
 import pytest
-from test_list_ado_content import MockResponse
-from test_internal_serv_listing import MockListClient, create_test_list_data
-from test_find_pypi_deps2 import MockClient1, MockSpecPage, MockSpecMeta, \
-    LookupWhat, create_test_pkg_spec
 from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd
 from pypkg_recdep.list_ado_content import PkgInfo, SinglePkgInfo
+if TYPE_CHECKING:
+    from test.test_pypkg_recdep.test_list_ado_content import MockResponse
+    from test.test_pypkg_recdep.test_internal_serv_listing import \
+        MockListClient, create_test_list_data
+    from test.test_pypkg_recdep.test_find_pypi_deps2 import MockClient1, \
+        MockSpecPage, MockSpecMeta, LookupWhat, create_test_pkg_spec
+else:
+    from test_list_ado_content import MockResponse
+    from test_internal_serv_listing import MockListClient, \
+        create_test_list_data
+    from test_find_pypi_deps2 import MockClient1, MockSpecPage, \
+        MockSpecMeta, LookupWhat, create_test_pkg_spec
 
 
 # Section with tests of printdeps subcommand
@@ -33,7 +42,10 @@ from pypkg_recdep.list_ado_content import PkgInfo, SinglePkgInfo
                            [r'# Package dependency information for mypkg',
                             r'mypkg',
                             r'\(End of document\.\)'])])
-def test_printdeps_integration(monkeypatch, capsys, args, expected_content):
+def test_printdeps_integration(
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str], args: list[str],
+        expected_content: list[str]) -> None:
     """Test printdeps subcommand end-to-end."""
     # Create mock spec for PyPISimple
     spec = create_test_pkg_spec()
@@ -51,7 +63,7 @@ def test_printdeps_integration(monkeypatch, capsys, args, expected_content):
         )
     )
 
-    def mock_pypisimple():
+    def mock_pypisimple() -> MockClient1:
         """Return MockClient1."""
         return MockClient1(spec=deepcopy(spec),
                            lookup=LookupWhat.LOOKUP_NAME)
@@ -100,7 +112,10 @@ def test_printdeps_integration(monkeypatch, capsys, args, expected_content):
                              'Metadata version', 'package type',
                              'file name']])])
 # pylint: disable=too-many-locals
-def test_listado_integration(monkeypatch, capsys, args, expected_rows):
+def test_listado_integration(
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str], args: list[str],
+        expected_rows: list[list[str]]) -> None:
     """Test listado subcommand end-to-end."""
     # Create mock response for requests.get
     json_data = {
@@ -113,7 +128,9 @@ def test_listado_integration(monkeypatch, capsys, args, expected_rows):
     }
     mock_response = MockResponse(json_data=json_data)
 
-    def mock_get(url, headers=None, auth=None, timeout=None):
+    def mock_get(url: object, headers: Optional[dict[str, str]] = None,
+                 auth: object = None,
+                 timeout: Optional[float] = None) -> MockResponse:
         """Mock requests.get."""
         _ = url, headers, auth, timeout
         return mock_response
@@ -122,7 +139,8 @@ def test_listado_integration(monkeypatch, capsys, args, expected_rows):
     monkeypatch.setattr('requests.Session.get', mock_get)
 
     # Mock get_from_rest to return package data
-    def mock_get_from_rest(url, headers, auth, timeout):
+    def mock_get_from_rest(url: object, headers: object, auth: object,
+                           timeout: object) -> dict[str, list[object]]:
         """Mock get_from_rest."""
         _ = url, headers, auth, timeout
         return {
@@ -152,7 +170,8 @@ def test_listado_integration(monkeypatch, capsys, args, expected_rows):
                         mock_get_from_rest)
 
     # Mock get_feed_id
-    def mock_get_feed_id(instance, collection, pat_file):
+    def mock_get_feed_id(instance: object, collection: object,
+                         pat_file: object) -> str:
         """Mock get_feed_id."""
         _ = instance, collection, pat_file
         return 'feed-id-123'
@@ -161,7 +180,8 @@ def test_listado_integration(monkeypatch, capsys, args, expected_rows):
                         mock_get_feed_id)
 
     # Mock get_pkgs
-    def mock_get_pkgs(url_info, project, include_types):
+    def mock_get_pkgs(url_info: object, project: object,
+                      include_types: object) -> list[PkgInfo]:
         """Mock get_pkgs."""
         _ = url_info, project, include_types
         return [
@@ -220,7 +240,10 @@ def test_listado_integration(monkeypatch, capsys, args, expected_rows):
                             '-o', 'output.csv', '-n', '5'],
                            [['Name', 'Version', 'Metadata Version',
                              'Formats']])])
-def test_listinternal_integration(monkeypatch, capsys, args, expected_rows):
+def test_listinternal_integration(
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str], args: list[str],
+        expected_rows: list[list[str]]) -> None:
     """Test listinternal subcommand end-to-end."""
     # Create test data for MockListClient
     test_data = create_test_list_data(
@@ -230,7 +253,8 @@ def test_listinternal_integration(monkeypatch, capsys, args, expected_rows):
         ]
     )
 
-    def mock_pypisimple(endpoint, auth=None):
+    def mock_pypisimple(endpoint: object, auth: object = None) -> \
+            MockListClient:
         """Return MockListClient."""
         _ = endpoint, auth
         return MockListClient(data=deepcopy(test_data))

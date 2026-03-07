@@ -24,8 +24,13 @@ from pypkg_recdep.pkg_info import PkgKey, create_pkginfo, PkgInfo, Pkgs
                           (NormalizedName('jkl'), Version('8.9'),
                            'jKL', '8.9',
                            NormalizedName('jkl'), Version('8.9'))])
-def test_pkgkey_init_equal(capsys,  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
-                           nam1, ver1, nam2, ver2, tnam, tver):
+def test_pkgkey_init_equal(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-arguments,too-many-positional-arguments # noqa: E501
+                           nam1: str | NormalizedName,
+                           ver1: str | Version,
+                           nam2: str | NormalizedName,
+                           ver2: str | Version,
+                           tnam: NormalizedName,
+                           tver: Version) -> None:
     """Test OK cases of PkgKey init and compare."""
     a = PkgKey(name=deepcopy(nam1), version=deepcopy(ver1))
     b = PkgKey(name=deepcopy(nam2), version=deepcopy(ver2))
@@ -57,7 +62,11 @@ def test_pkgkey_init_equal(capsys,  # pylint: disable=too-many-arguments,too-man
                            'yz', '7.8'),
                           (NormalizedName('xyz'), Version('7.8'),
                            'xyz', '7.9')])
-def test_pkgkey_init_not_equal(capsys, nam1, ver1, nam2, ver2):
+def test_pkgkey_init_not_equal(capsys: pytest.CaptureFixture[str],
+                               nam1: str | NormalizedName,
+                               ver1: str | Version,
+                               nam2: str | NormalizedName,
+                               ver2: str | Version) -> None:
     """Test OK cases of PkgKey init and compare."""
     a = PkgKey(name=deepcopy(nam1), version=deepcopy(ver1))
     b = PkgKey(name=deepcopy(nam2), version=deepcopy(ver2))
@@ -78,7 +87,8 @@ def test_pkgkey_init_not_equal(capsys, nam1, ver1, nam2, ver2):
 
 @pytest.mark.parametrize('nam,ver',
                          [('abc', '2.3'), ('gh', '9.1.3')])
-def test_create_pkg_info(capsys, nam, ver):
+def test_create_pkg_info(capsys: pytest.CaptureFixture[str],
+                         nam: str, ver: str) -> None:
     """Test OK cases of create_pkg_info."""
     a = PkgKey(name=deepcopy(nam), version=deepcopy(ver))
     c = PkgInfo(key=deepcopy(a), metadata_version=None, license=None,
@@ -93,7 +103,7 @@ def test_create_pkg_info(capsys, nam, ver):
     assert '' == err
 
 
-def test_pkgs_dict(capsys):
+def test_pkgs_dict(capsys: pytest.CaptureFixture[str]) -> None:
     """Test using dict Pkgs."""
     data = [
         ('hg', '3.1', 'abc'),
@@ -118,7 +128,7 @@ def test_pkgs_dict(capsys):
     assert '' == err
 
 
-def test_pkg_key_str(capsys):
+def test_pkg_key_str(capsys: pytest.CaptureFixture[str]) -> None:
     """Simple test of PkgKey.__str__."""
     key = PkgKey(name='xyz', version='1.3.2')
     assert "{'name': 'xyz', 'version': <Version('1.3.2')>}" == str(key)

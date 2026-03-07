@@ -7,18 +7,24 @@
 from copy import deepcopy
 from tempfile import TemporaryDirectory
 from io import StringIO
+from types import SimpleNamespace
+from typing import Optional, TYPE_CHECKING, cast
 import sys
 import pytest
 from mformat.factory import create_mf
 from packaging.requirements import Requirement
 from packaging.version import Version
-from test_find_pypi_deps2 import MockClient1, LookupWhat, \
-    create_test_pkg_spec
 from pypkg_recdep.print_deps import print_fulfilling_pkg, \
     print_one_pkg_short, print_one_pkg, print_purl, print_deps, \
     print_rec_deps, OutputSpec
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo, Pkgs
 from pypkg_recdep.exclude import ExcludeInfo
+if TYPE_CHECKING:
+    from test.test_pypkg_recdep.test_find_pypi_deps2 import MockClient1, \
+        LookupWhat, create_test_pkg_spec
+else:
+    from test_find_pypi_deps2 import MockClient1, LookupWhat, \
+        create_test_pkg_spec
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -28,9 +34,9 @@ def create_test_pkg(name: str, version: str,
                     homepage: str = 'http://example.com',
                     maintainer: str = 'Test Maintainer',
                     source_url: str = 'http://github.com/test',
-                    project_urls: dict = None,
-                    dependencies: list = None,
-                    license_text: str = None) -> PkgInfo:
+                    project_urls: Optional[dict[str, str]] = None,
+                    dependencies: Optional[list[str]] = None,
+                    license_text: Optional[str] = None) -> PkgInfo:
     """Create a test package with given properties."""
     key = PkgKey(name=name, version=version)
     info = create_pkginfo(key=key)
@@ -58,8 +64,9 @@ def create_test_pkg(name: str, version: str,
                            {PkgKey('mylib', '1.5.0'):
                             create_pkginfo(PkgKey('mylib', '1.5.0'))},
                            'mylib version: 1.5.0')])
-def test_print_fulfilling_pkg_ok1(capsys, req_str, all_deps,
-                                  expected_out):
+def test_print_fulfilling_pkg_ok1(capsys: pytest.CaptureFixture[str],
+                                  req_str: str, all_deps: Pkgs,
+                                  expected_out: str) -> None:
     """Test OK cases of print_fulfilling_pkg."""
     req = Requirement(req_str)
     with TemporaryDirectory() as dirname:
@@ -83,9 +90,10 @@ def test_print_fulfilling_pkg_ok1(capsys, req_str, all_deps,
       ['- test-pkg', 'Version: 1.0.0', 'Metadata version: 2.1']),
      ('my-lib', '2.3.4', '2.4',
       ['- my-lib', 'Version: 2.3.4', 'Metadata version: 2.4'])])
-def test_print_one_pkg_short_ok1(capsys,  # pylint: disable=too-many-locals # noqa: E501
-                                 name, version, metadata_version,
-                                 expected_lines):
+def test_print_one_pkg_short_ok1(capsys: pytest.CaptureFixture[str],  # pylint: disable=too-many-locals # noqa: E501
+                                 name: str, version: str,
+                                 metadata_version: str,
+                                 expected_lines: list[str]) -> None:
     """Test OK cases of print_one_pkg_short."""
     pkg = create_test_pkg(name=name, version=version,
                           metadata_version=metadata_version)
@@ -105,7 +113,8 @@ def test_print_one_pkg_short_ok1(capsys,  # pylint: disable=too-many-locals # no
     assert '' == err
 
 
-def test_print_one_pkg_short_with_urls(capsys):
+def test_print_one_pkg_short_with_urls(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_one_pkg_short with project URLs."""
     pkg = create_test_pkg(
         name='test-pkg', version='1.0.0',
@@ -129,7 +138,8 @@ def test_print_one_pkg_short_with_urls(capsys):
     assert '' == err
 
 
-def test_print_one_pkg_short_with_deps(capsys):
+def test_print_one_pkg_short_with_deps(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_one_pkg_short with dependencies."""
     dep_pkg = create_test_pkg(name='dep-pkg', version='1.0.0')
     main_pkg = create_test_pkg(
@@ -156,7 +166,8 @@ def test_print_one_pkg_short_with_deps(capsys):
 @pytest.mark.parametrize('mainpkg,expected_heading',
                          [(True, '## Primary package:'),
                           (False, '###')])
-def test_print_one_pkg_ok1(capsys, mainpkg, expected_heading):
+def test_print_one_pkg_ok1(capsys: pytest.CaptureFixture[str], mainpkg: bool,
+                           expected_heading: str) -> None:
     """Test OK cases of print_one_pkg."""
     pkg = create_test_pkg(
         name='test-pkg', version='1.0.0',
@@ -179,7 +190,8 @@ def test_print_one_pkg_ok1(capsys, mainpkg, expected_heading):
     assert '' == err
 
 
-def test_print_one_pkg_no_license(capsys):
+def test_print_one_pkg_no_license(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_one_pkg without license text."""
     pkg = create_test_pkg(name='test-pkg', version='1.0.0',
                           license_text=None)
@@ -203,9 +215,13 @@ def test_print_one_pkg_no_license(capsys):
                          [('test-pkg', '1.0.0', 'pkg:pypi/test-pkg@1.0.0'),
                           ('my-lib', '2.3.4', 'pkg:pypi/my-lib@2.3.4'),
                           ('pkg', None, 'pkg:pypi/pkg')])
-def test_print_purl_ok1(capsys, name, version, expected):
+def test_print_purl_ok1(capsys: pytest.CaptureFixture[str], name: str,
+                        version: Optional[str], expected: str) -> None:
     """Test OK cases of print_purl."""
-    key = PkgKey(name=name, version=version)
+    if version is None:
+        key = cast(PkgKey, SimpleNamespace(name=name, version=None))
+    else:
+        key = PkgKey(name=name, version=version)
     file = StringIO()
     print_purl(file=file, pkg=key)
     output = file.getvalue().strip()
@@ -215,7 +231,7 @@ def test_print_purl_ok1(capsys, name, version, expected):
     assert '' == err
 
 
-def test_print_deps_ok1(capsys):
+def test_print_deps_ok1(capsys: pytest.CaptureFixture[str]) -> None:
     """Test OK case of print_deps."""
     main_pkg = create_test_pkg(
         name='main-pkg', version='1.0.0',
@@ -247,7 +263,7 @@ def test_print_deps_ok1(capsys):
     assert '' == err
 
 
-def test_print_deps_ok1html(capsys):
+def test_print_deps_ok1html(capsys: pytest.CaptureFixture[str]) -> None:
     """Test OK case of print_deps."""
     main_pkg = create_test_pkg(
         name='main-pkg', version='1.0.0',
@@ -279,7 +295,7 @@ def test_print_deps_ok1html(capsys):
     assert '' == err
 
 
-def test_print_deps_with_purls(capsys):
+def test_print_deps_with_purls(capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_deps with purls file."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0')
     dep1 = create_test_pkg(name='dep1', version='1.0.0')
@@ -304,7 +320,9 @@ def test_print_deps_with_purls(capsys):
     assert '' == out
 
 
-def test_print_deps_with_exclusions(capsys):  # pylint: disable=too-many-locals # noqa: E501
+# pylint: disable=too-many-locals
+def test_print_deps_with_exclusions(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_deps with excluded packages."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0',
                                dependencies=['dep1', 'excluded-pkg'])
@@ -337,9 +355,11 @@ def test_print_deps_with_exclusions(capsys):  # pylint: disable=too-many-locals 
     out, err = capsys.readouterr()
     assert '' == out
     assert '' == err
+# pylint: enable=too-many-locals
 
 
-def test_print_rec_deps_with_mock(capsys, monkeypatch):
+def test_print_rec_deps_with_mock(capsys: pytest.CaptureFixture[str],
+                                  monkeypatch: pytest.MonkeyPatch) -> None:
     """Test print_rec_deps with mocked resolve_all_dependencies."""
     main_pkg = create_test_pkg(name='test-app', version='1.0.0',
                                dependencies=['dep1'])
@@ -349,7 +369,8 @@ def test_print_rec_deps_with_mock(capsys, monkeypatch):
         PkgKey('dep1', '1.0.0'): dep1
     }
 
-    def mock_resolve(root_package, python_version, max_metadata_version):
+    def mock_resolve(root_package: str, python_version: str,
+                     max_metadata_version: Optional[str]) -> Pkgs:
         """Mock resolve_all_dependencies."""
         assert root_package == 'test-app'
         assert python_version == '3.13'
@@ -377,11 +398,13 @@ def test_print_rec_deps_with_mock(capsys, monkeypatch):
     assert '' == err
 
 
-def test_print_rec_deps_with_mockclient1(capsys, monkeypatch):
+def test_print_rec_deps_with_mockclient1(
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """Test print_rec_deps with MockClient1."""
     spec = create_test_pkg_spec()
 
-    def mock_pypisimple():
+    def mock_pypisimple() -> MockClient1:
         """Return MockClient1."""
         return MockClient1(spec=deepcopy(spec),
                            lookup=LookupWhat.LOOKUP_NAME)
@@ -407,7 +430,8 @@ def test_print_rec_deps_with_mockclient1(capsys, monkeypatch):
     assert '' == err
 
 
-def test_print_deps_only_excluded(capsys):
+def test_print_deps_only_excluded(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_deps when all dependencies are excluded."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0',
                                dependencies=['stdlib-pkg'])
@@ -440,7 +464,8 @@ def test_print_deps_only_excluded(capsys):
     assert '' == err
 
 
-def test_print_one_pkg_short_all_fields(capsys):
+def test_print_one_pkg_short_all_fields(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_one_pkg_short with all optional fields."""
     pkg = create_test_pkg(
         name='full-pkg', version='3.0.0',
@@ -485,7 +510,8 @@ def test_print_one_pkg_short_all_fields(capsys):
     assert '' == err
 
 
-def test_print_one_pkg_short_dep_no_specifier(capsys):
+def test_print_one_pkg_short_dep_no_specifier(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_one_pkg_short with dependency without specifier."""
     dep_pkg = create_test_pkg(name='dep-pkg', version='1.0.0')
     main_pkg = create_test_pkg(
@@ -515,7 +541,8 @@ def test_print_one_pkg_short_dep_no_specifier(capsys):
     assert '' == err
 
 
-def test_print_deps_only_main_pkg(capsys):
+def test_print_deps_only_main_pkg(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_deps when all pkgs excluded (tests line 137)."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0',
                                dependencies=['dep1'])
@@ -550,7 +577,8 @@ def test_print_deps_only_main_pkg(capsys):
     assert '' == err
 
 
-def test_print_deps_with_existing_purls_file(capsys):
+def test_print_deps_with_existing_purls_file(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test print_deps when purls file exists (tests line 159)."""
     main_pkg = create_test_pkg(name='main-pkg', version='1.0.0')
     dep1 = create_test_pkg(name='dep1', version='1.0.0')
@@ -584,7 +612,8 @@ def test_print_deps_with_existing_purls_file(capsys):
         assert '' == err
 
 
-def test_print_deps_file_cb_y(capsys, monkeypatch):
+def test_print_deps_file_cb_y(capsys: pytest.CaptureFixture[str],
+                              monkeypatch: pytest.MonkeyPatch) -> None:
     """Test print_deps when file exists and user answers 'y'."""
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'
@@ -608,7 +637,8 @@ def test_print_deps_file_cb_y(capsys, monkeypatch):
     assert '' == err
 
 
-def test_print_deps_file_cb_n(capsys, monkeypatch):
+def test_print_deps_file_cb_n(capsys: pytest.CaptureFixture[str],
+                              monkeypatch: pytest.MonkeyPatch) -> None:
     """Test print_deps when file exists and user answers 'n'."""
     with TemporaryDirectory() as dirname:
         outfile = dirname + '/output.md'

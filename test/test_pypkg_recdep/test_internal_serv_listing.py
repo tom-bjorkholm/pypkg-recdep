@@ -5,21 +5,26 @@
 # MIT License
 
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, cast
 import re
 import csv
 from tempfile import TemporaryDirectory
 import pytest
 from packaging.version import Version
-from pypi_simple import IndexPage, ProjectPage, DistributionPackage, \
-    NoMetadataError, NoDigestsError, DigestMismatchError
+from pypi_simple import PyPISimple, IndexPage, ProjectPage, \
+    DistributionPackage, NoMetadataError, NoDigestsError, \
+    DigestMismatchError
 from requests.auth import AuthBase
 import requests
-from get_example_pypi_list_data import load_example_pypi_list_data
 from pypkg_recdep.pkg_info import PkgKey, MockListData
 from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
     read_token_from_file, get_auth, get_meta, store_pkg, \
     list_for_projects, list_in_internal_server
+if TYPE_CHECKING:
+    from test.test_pypkg_recdep.get_example_pypi_list_data import \
+        load_example_pypi_list_data
+else:
+    from get_example_pypi_list_data import load_example_pypi_list_data
 
 
 class MockListClient:  # pylint: disable=too-many-instance-attributes
@@ -41,7 +46,7 @@ class MockListClient:  # pylint: disable=too-many-instance-attributes
                  data: Optional[MockListData] = None,
                  index_exception: Optional[Exception] = None,
                  project_exception: Optional[Exception] = None,
-                 package_meta_exception: Optional[Exception] = None):
+                 package_meta_exception: Optional[Exception] = None) -> None:
         """Create a MockListClient object.
 
         @param project_pattern  A regular expression to filter the projects.
@@ -104,11 +109,13 @@ class MockListClient:  # pylint: disable=too-many-instance-attributes
             self.mock_data.project_pages[project].packages = pkgs
         return self.mock_data.project_pages[project]
 
-    def get_package_metadata(self, pkg=None,
+    def get_package_metadata(self, pkg: Optional[DistributionPackage] = None,
                              timeout: float = 30.0) -> str:
         """Get a fake package metadata."""
         assert timeout is not None
         assert pkg is not None
+        assert pkg.project is not None
+        assert pkg.version is not None
         if self.package_meta_exception is not None:
             raise self.package_meta_exception
         key = PkgKey(pkg.project, pkg.version)
@@ -118,7 +125,8 @@ class MockListClient:  # pylint: disable=too-many-instance-attributes
         """Enter context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None,
+                 exc_val: BaseException | None, exc_tb: object) -> None:
         """Exit context manager."""
 
 
@@ -160,7 +168,7 @@ def create_test_list_data(
 class MockPyPISimpleFactory:  # pylint: disable=too-few-public-methods
     """Factory class to create MockListClient instances for PyPISimple."""
 
-    def __init__(self, client_data: Optional[MockListData] = None):
+    def __init__(self, client_data: Optional[MockListData] = None) -> None:
         """Create a MockPyPISimpleFactory.
 
         @param client_data  Optional data to use for all created clients.
@@ -168,7 +176,8 @@ class MockPyPISimpleFactory:  # pylint: disable=too-few-public-methods
         self.client_data = client_data
         self.created_clients: list[MockListClient] = []
 
-    def __call__(self, endpoint: str, auth: Optional[AuthBase] = None):
+    def __call__(self, endpoint: str,
+                 auth: Optional[AuthBase] = None) -> MockListClient:
         """Create a MockListClient instance.
 
         @param endpoint  The endpoint URL.
@@ -225,9 +234,11 @@ def test_load_example_pypi_list_data() -> None:
         assert len(example.project_pages[project].packages) == \
             expected_num
         for pkg in example.project_pages[project].packages:
+            assert pkg.project is not None
             assert pkg.project.replace('-', '_').replace('.', '_') == \
                 project.replace('-', '_').replace('.', '_')
             if pkg.has_metadata:
+                assert pkg.version is not None
                 pkgkey = PkgKey(pkg.project, pkg.version)
                 assert pkgkey in example.metas
                 assert example.metas[pkgkey] is not None
@@ -245,7 +256,9 @@ def test_load_example_pypi_list_data() -> None:
                           ('^pyt', None, None),
                           (None, 5, None)])
 def test_mock_list_client_init(
-        capsys, project_pattern, max_num_versions, expected_count):
+        capsys: pytest.CaptureFixture[str], project_pattern: Optional[str],
+        max_num_versions: Optional[int],
+        expected_count: Optional[int]) -> None:
     """Test initialization of MockListClient."""
     client = MockListClient(project_pattern=project_pattern,
                             max_num_versions=max_num_versions)
@@ -272,14 +285,16 @@ def test_mock_list_client_init(
                          [('pytest', 30.0, 347),
                           ('pytest', 60.0, 347),
                           ('excel-list-transform', 30.0, 40)])
-def test_mock_list_client_get_project_page(capsys, project, timeout,
-                                           num_packages):
+def test_mock_list_client_get_project_page(capsys: pytest.CaptureFixture[str],
+                                           project: str, timeout: float,
+                                           num_packages: int) -> None:
     """Test get_project_page method of MockListClient."""
     client = MockListClient()
     page = client.get_project_page(project=deepcopy(project), timeout=timeout)
     assert isinstance(page, ProjectPage)
     assert len(page.packages) == num_packages
     for pkg in page.packages:
+        assert pkg.project is not None
         assert pkg.project.replace('-', '_').replace('.', '_') == \
             project.replace('-', '_').replace('.', '_')
     out, err = capsys.readouterr()
@@ -291,7 +306,9 @@ def test_mock_list_client_get_project_page(capsys, project, timeout,
                          [('pytest', 5),
                           ('pytest', 10),
                           ('excel-list-transform', 3)])
-def test_mock_list_client_max_num_versions(capsys, project, max_num_versions):
+def test_mock_list_client_max_num_versions(
+        capsys: pytest.CaptureFixture[str], project: str,
+        max_num_versions: int) -> None:
     """Test max_num_versions parameter of MockListClient."""
     client = MockListClient(max_num_versions=max_num_versions)
     page = client.get_project_page(project=deepcopy(project), timeout=30.0)
@@ -301,7 +318,8 @@ def test_mock_list_client_max_num_versions(capsys, project, max_num_versions):
     assert '' == err
 
 
-def test_mock_list_client_get_package_metadata(capsys):
+def test_mock_list_client_get_package_metadata(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test get_package_metadata method of MockListClient."""
     client = MockListClient()
     page = client.get_project_page(project='pytest', timeout=30.0)
@@ -320,7 +338,8 @@ def test_mock_list_client_get_package_metadata(capsys):
     assert '' == err
 
 
-def test_mock_list_client_context_manager(capsys):
+def test_mock_list_client_context_manager(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test MockListClient as context manager."""
     with MockListClient() as client:
         assert client is not None
@@ -334,7 +353,8 @@ def test_mock_list_client_context_manager(capsys):
 @pytest.mark.parametrize('endpoint',
                          ['http://test.com/simple', 'https://pypi.org/simple',
                           'http://localhost:8080/simple'])
-def test_mock_list_client_endpoint(capsys, endpoint):
+def test_mock_list_client_endpoint(capsys: pytest.CaptureFixture[str],
+                                   endpoint: str) -> None:
     """Test MockListClient with endpoint parameter."""
     client = MockListClient(endpoint=deepcopy(endpoint))
     assert client.mock_data is not None
@@ -347,7 +367,8 @@ def test_mock_list_client_endpoint(capsys, endpoint):
 
 @pytest.mark.parametrize('auth',
                          [None, NoAuth(), TokenAuth('test-token')])
-def test_mock_list_client_auth(capsys, auth):
+def test_mock_list_client_auth(capsys: pytest.CaptureFixture[str],
+                               auth: NoAuth | TokenAuth | None) -> None:
     """Test MockListClient with auth parameter."""
     client = MockListClient(auth=auth)
     assert client.mock_data is not None
@@ -358,7 +379,7 @@ def test_mock_list_client_auth(capsys, auth):
     assert '' == err
 
 
-def test_mock_list_client_data(capsys):
+def test_mock_list_client_data(capsys: pytest.CaptureFixture[str]) -> None:
     """Test MockListClient with custom data parameter."""
     custom_data = load_example_pypi_list_data()
     client = MockListClient(data=custom_data)
@@ -374,7 +395,8 @@ def test_mock_list_client_data(capsys):
                          [requests.HTTPError('test'),
                           ValueError('test error'),
                           RuntimeError('runtime error')])
-def test_mock_list_client_index_exception(capsys, exception):
+def test_mock_list_client_index_exception(capsys: pytest.CaptureFixture[str],
+                                          exception: Exception) -> None:
     """Test MockListClient with index_exception."""
     client = MockListClient(index_exception=exception)
     with pytest.raises(type(exception)):
@@ -388,7 +410,8 @@ def test_mock_list_client_index_exception(capsys, exception):
                          [requests.HTTPError('test'),
                           ValueError('test error'),
                           KeyError('test')])
-def test_mock_list_client_project_exception(capsys, exception):
+def test_mock_list_client_project_exception(capsys: pytest.CaptureFixture[str],
+                                            exception: Exception) -> None:
     """Test MockListClient with project_exception."""
     client = MockListClient(project_exception=exception)
     with pytest.raises(type(exception)):
@@ -403,7 +426,8 @@ def test_mock_list_client_project_exception(capsys, exception):
                                           url='http://test.com'),
                           NoDigestsError(url='http://test.com'),
                           requests.HTTPError('test')])
-def test_mock_list_client_package_meta_exception(capsys, exception):
+def test_mock_list_client_package_meta_exception(
+        capsys: pytest.CaptureFixture[str], exception: Exception) -> None:
     """Test MockListClient with package_meta_exception."""
     client = MockListClient(package_meta_exception=exception)
     page = client.get_project_page(project='pytest', timeout=30.0)
@@ -427,7 +451,7 @@ class MockMetaClient:  # pylint: disable=too-few-public-methods
     """Mock client for testing get_meta with exceptions."""
 
     def __init__(self, exception: Optional[Exception] = None,
-                 metadata: Optional[str] = None):
+                 metadata: Optional[str] = None) -> None:
         """Create a MockMetaClient object.
 
         @param exception  Exception to raise when get_package_metadata is
@@ -437,7 +461,8 @@ class MockMetaClient:  # pylint: disable=too-few-public-methods
         self.exception = exception
         self.metadata = metadata
 
-    def get_package_metadata(self, pkg, timeout: float = 30.0) -> str:
+    def get_package_metadata(self, pkg: Optional[DistributionPackage] = None,
+                             timeout: float = 30.0) -> str:
         """Get package metadata or raise exception."""
         assert timeout is not None
         assert pkg is not None
@@ -457,7 +482,9 @@ class MockMetaClient:  # pylint: disable=too-few-public-methods
                            '2.4'),
                           (True, 'Metadata-Version: 1.0\nName: test\n',
                            '1.0')])
-def test_get_meta_ok1(capsys, has_metadata, metadata, expected):
+def test_get_meta_ok1(capsys: pytest.CaptureFixture[str],
+                      has_metadata: bool, metadata: Optional[str],
+                      expected: str) -> None:
     """Test OK cases of get_meta."""
     pkg = DistributionPackage(filename='test.whl', url='http://test.com',
                               project='pytest', version='9.0.0',
@@ -468,7 +495,7 @@ def test_get_meta_ok1(capsys, has_metadata, metadata, expected):
         mock_client = MockMetaClient(metadata=deepcopy(metadata))
     else:
         mock_client = MockMetaClient()
-    ret = get_meta(client=mock_client, pkg=pkg)
+    ret = get_meta(client=cast(PyPISimple, mock_client), pkg=pkg)
     assert ret == expected
     out, err = capsys.readouterr()
     assert '' == out
@@ -478,13 +505,15 @@ def test_get_meta_ok1(capsys, has_metadata, metadata, expected):
 @pytest.mark.parametrize('project,ver,metaver',
                          [('pytest', '2.7.1', '2.0'),
                           ('excel-list-transform', '0.5', '2.1')])
-def test_get_meta_with_mock_list_client(capsys, project, ver, metaver):
+def test_get_meta_with_mock_list_client(capsys: pytest.CaptureFixture[str],
+                                        project: str, ver: str,
+                                        metaver: str) -> None:
     """Test get_meta with MockListClient using real test data."""
     client = MockListClient()
     page = client.get_project_page(project=deepcopy(project), timeout=30.0)
     # Find a package with metadata
     pkg = [p for p in page.packages if p.version == ver][0]
-    ret = get_meta(client=client, pkg=pkg)
+    ret = get_meta(client=cast(PyPISimple, client), pkg=pkg)
     assert ret == metaver
     out, err = capsys.readouterr()
     assert '' == out
@@ -494,7 +523,9 @@ def test_get_meta_with_mock_list_client(capsys, project, ver, metaver):
 @pytest.mark.parametrize('metadata,expected',
                          [('Name: test\nVersion: 1.0.0\n', 'unknown'),
                           ('Metadata-Version: 2.1\nName: test\n', '2.1')])
-def test_get_meta_no_metadata_version(capsys, metadata, expected):
+def test_get_meta_no_metadata_version(capsys: pytest.CaptureFixture[str],
+                                      metadata: str,
+                                      expected: str) -> None:
     """Test get_meta when metadata_version is missing."""
     pkg = DistributionPackage(filename='test.whl', url='http://test.com',
                               project='pytest', version='9.0.0',
@@ -502,7 +533,7 @@ def test_get_meta_no_metadata_version(capsys, metadata, expected):
                               digests={}, has_sig=False)
     pkg.has_metadata = True
     mock_client = MockMetaClient(metadata=deepcopy(metadata))
-    ret = get_meta(client=mock_client, pkg=pkg)
+    ret = get_meta(client=cast(PyPISimple, mock_client), pkg=pkg)
     assert ret == expected
     out, err = capsys.readouterr()
     assert '' == out
@@ -525,7 +556,9 @@ def test_get_meta_no_metadata_version(capsys, metadata, expected):
                            'Failed to get metadata version for pytest'),
                           (ValueError('test'),
                            'Failed to get metadata version for pytest')])
-def test_get_meta_exceptions(capsys, exception, err_msg):
+def test_get_meta_exceptions(capsys: pytest.CaptureFixture[str],
+                             exception: Exception,
+                             err_msg: str) -> None:
     """Test get_meta with various exceptions using MockListClient."""
     client = MockListClient(package_meta_exception=exception)
     page = client.get_project_page(project='pytest', timeout=30.0)
@@ -535,7 +568,7 @@ def test_get_meta_exceptions(capsys, exception, err_msg):
             pkg = p
             break
     if pkg is not None:
-        ret = get_meta(client=client, pkg=pkg)
+        ret = get_meta(client=cast(PyPISimple, client), pkg=pkg)
         assert ret == 'unknown'
         out, err = capsys.readouterr()
         assert '' == out
@@ -553,7 +586,10 @@ def test_get_meta_exceptions(capsys, exception, err_msg):
                            {'pkg3': {'3.0.0': {'meta': 'unknown',
                                                'ptype': 'unknown'}}})])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_store_pkg_new_package(capsys, name, ver, meta, ptype, expected_dict):
+def test_store_pkg_new_package(
+        capsys: pytest.CaptureFixture[str], name: str, ver: str, meta: str,
+        ptype: Optional[str],
+        expected_dict: dict[str, dict[str, dict[str, str]]]) -> None:
     """Test store_pkg with new packages."""
     proj_pkgs: dict[str, dict[str, dict[str, str]]] = {}
     store_pkg(proj_pkgs=proj_pkgs, name=deepcopy(name), ver=deepcopy(ver),
@@ -581,7 +617,10 @@ def test_store_pkg_new_package(capsys, name, ver, meta, ptype, expected_dict):
                                                'ptype': 'sdist'}}})])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_store_pkg_new_version(
-        capsys, name, ver, meta, ptype, initial_dict, expected_dict):
+        capsys: pytest.CaptureFixture[str], name: str, ver: str, meta: str,
+        ptype: Optional[str],
+        initial_dict: dict[str, dict[str, dict[str, str]]],
+        expected_dict: dict[str, dict[str, dict[str, str]]]) -> None:
     """Test store_pkg with new version of existing package."""
     proj_pkgs = deepcopy(initial_dict)
     store_pkg(proj_pkgs=proj_pkgs, name=deepcopy(name), ver=deepcopy(ver),
@@ -609,8 +648,11 @@ def test_store_pkg_new_version(
                            {'pkg3': {'1.0.0': {'meta': '2.1',
                                                'ptype': 'whl'}}})])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def test_store_pkg_existing_version(capsys, name, ver, meta, ptype,
-                                    initial_dict, expected_dict):
+def test_store_pkg_existing_version(
+        capsys: pytest.CaptureFixture[str], name: str, ver: str, meta: str,
+        ptype: Optional[str],
+        initial_dict: dict[str, dict[str, dict[str, str]]],
+        expected_dict: dict[str, dict[str, dict[str, str]]]) -> None:
     """Test store_pkg with existing package version."""
     proj_pkgs = deepcopy(initial_dict)
     store_pkg(proj_pkgs=proj_pkgs, name=deepcopy(name), ver=deepcopy(ver),
@@ -625,7 +667,9 @@ def test_store_pkg_existing_version(capsys, name, ver, meta, ptype,
                          [(None, '1.0.0', '2.1', 'whl'),
                           ('pkg1', None, '2.1', 'whl'),
                           (None, None, '2.1', 'whl')])
-def test_store_pkg_none_values(capsys, name, ver, meta, ptype):
+def test_store_pkg_none_values(capsys: pytest.CaptureFixture[str],
+                               name: Optional[str], ver: Optional[str],
+                               meta: str, ptype: Optional[str]) -> None:
     """Test store_pkg with None name or version."""
     proj_pkgs: dict[str, dict[str, dict[str, str]]] = {}
     initial_proj_pkgs = deepcopy(proj_pkgs)
@@ -646,7 +690,9 @@ def test_store_pkg_none_values(capsys, name, ver, meta, ptype):
                           ('token-with-dashes', 'token-with-dashes'),
                           ('token.with.dots', 'token.with.dots'),
                           ('', '')])
-def test_read_token_from_file_ok1(capsys, token_content, expected):
+def test_read_token_from_file_ok1(capsys: pytest.CaptureFixture[str],
+                                  token_content: str,
+                                  expected: str) -> None:
     """Test OK cases of read_token_from_file."""
     with TemporaryDirectory() as dirname:
         token_file = dirname + '/token.txt'
@@ -662,7 +708,8 @@ def test_read_token_from_file_ok1(capsys, token_content, expected):
 @pytest.mark.parametrize('token_file',
                          ['/nonexistent/file/path/token.txt',
                           '/tmp/also/does/not/exist/token.txt'])
-def test_read_token_from_file_nok1(capsys, token_file):
+def test_read_token_from_file_nok1(capsys: pytest.CaptureFixture[str],
+                                   token_file: str) -> None:
     """Test not OK cases of read_token_from_file with file not found."""
     with pytest.raises(FileNotFoundError):
         _ = read_token_from_file(token_file=deepcopy(token_file))
@@ -676,7 +723,9 @@ def test_read_token_from_file_nok1(capsys, token_file):
                           ('token.txt', '  mytoken123  ', TokenAuth),
                           ('token.txt', 'another-token', TokenAuth),
                           ('', None, NoAuth)])
-def test_get_auth_ok1(capsys, pat_file, token_content, expected_type):
+def test_get_auth_ok1(capsys: pytest.CaptureFixture[str], pat_file: str,
+                      token_content: Optional[str],
+                      expected_type: type[NoAuth] | type[TokenAuth]) -> None:
     """Test OK cases of get_auth."""
     with TemporaryDirectory() as dirname:
         if pat_file and token_content is not None:
@@ -688,6 +737,7 @@ def test_get_auth_ok1(capsys, pat_file, token_content, expected_type):
             ret = get_auth(pat_file=deepcopy(pat_file))
         assert isinstance(ret, expected_type)
         if isinstance(ret, TokenAuth):
+            assert token_content is not None
             expected_token = deepcopy(token_content).strip()
             assert ret.token == expected_token
     out, err = capsys.readouterr()
@@ -698,7 +748,8 @@ def test_get_auth_ok1(capsys, pat_file, token_content, expected_type):
 @pytest.mark.parametrize('pat_file',
                          ['/nonexistent/file/path/token.txt',
                           '/tmp/also/does/not/exist/token.txt'])
-def test_get_auth_nok1(capsys, pat_file):
+def test_get_auth_nok1(capsys: pytest.CaptureFixture[str],
+                       pat_file: str) -> None:
     """Test not OK cases of get_auth with file not found."""
     with pytest.raises(FileNotFoundError):
         _ = get_auth(pat_file=deepcopy(pat_file))
@@ -711,12 +762,14 @@ def test_get_auth_nok1(capsys, pat_file):
                          [['pytest'],
                           ['excel-list-transform'],
                           ['pytest', 'excel-list-transform']])
-def test_list_for_projects_ok1(capsys, projects):
+def test_list_for_projects_ok1(capsys: pytest.CaptureFixture[str],
+                               projects: list[str]) -> None:
     """Test OK cases of list_for_projects."""
     client = MockListClient()
     with TemporaryDirectory() as dirname:
         output_file = dirname + '/output.csv'
-        list_for_projects(client=client, projects=deepcopy(projects),
+        list_for_projects(client=cast(PyPISimple, client),
+                          projects=deepcopy(projects),
                           output_file=output_file)
         with open(output_file, 'r', encoding='utf-8',
                   newline='') as file:
@@ -750,7 +803,9 @@ def test_list_for_projects_ok1(capsys, projects):
                             ('mypkg', '0.2.0', '2.1', 'sdist')])])
 # pylint: disable=too-many-locals
 def test_list_for_projects_content(
-        capsys, project_name, packages, expected_rows):
+        capsys: pytest.CaptureFixture[str], project_name: str,
+        packages: list[tuple[str, str, str, str]],
+        expected_rows: list[tuple[str, str, str, str]]) -> None:
     """Test content of list_for_projects output with known data."""
     test_data = create_test_list_data(
         project_name=deepcopy(project_name),
@@ -758,7 +813,7 @@ def test_list_for_projects_content(
     client = MockListClient(data=test_data)
     with TemporaryDirectory() as dirname:
         output_file = dirname + '/output.csv'
-        list_for_projects(client=client,
+        list_for_projects(client=cast(PyPISimple, client),
                           projects=[deepcopy(project_name)],
                           output_file=output_file)
         with open(output_file, 'r', encoding='utf-8',
@@ -788,8 +843,9 @@ def test_list_for_projects_content(
                            'http://test.com/simple')])
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def test_list_in_internal_server_ok1(
-        capsys, monkeypatch, server_url, pat_file, limit,
-        expected_endpoint):
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        server_url: str, pat_file: str, limit: Optional[int],
+        expected_endpoint: str) -> None:
     """Test OK cases of list_in_internal_server."""
     factory = MockPyPISimpleFactory()
     monkeypatch.setattr(
@@ -829,7 +885,8 @@ def test_list_in_internal_server_ok1(
                           ('https://example.org/pypi',
                            'https://example.org/pypi/simple')])
 def test_list_in_internal_server_urls(
-        capsys, monkeypatch, server_url, expected_endpoint):
+        capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        server_url: str, expected_endpoint: str) -> None:
     """Test list_in_internal_server with different URL formats."""
     factory = MockPyPISimpleFactory()
     monkeypatch.setattr(

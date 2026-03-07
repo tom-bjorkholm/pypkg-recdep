@@ -49,7 +49,7 @@ def get_example_pypi_list_data() -> None:
             project_pages[projname] = client.get_project_page(projname,
                                                               timeout=30.0)
             for pkg in project_pages[projname].packages:
-                if pkg.has_metadata:
+                if pkg.has_metadata and pkg.project and pkg.version:
                     meta = client.get_package_metadata(pkg, timeout=30.0)
                     metas[PkgKey(pkg.project, pkg.version)] = meta
         mock_list_data = MockListData(idx_page=idx_page,

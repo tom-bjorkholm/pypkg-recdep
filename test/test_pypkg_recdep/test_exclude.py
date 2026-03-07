@@ -13,7 +13,9 @@ from pypkg_recdep.pkg_info import PkgKey, create_pkginfo, Pkgs
 
 @pytest.mark.parametrize('lst,starts,res',
                          [(['abc', 'bbc', 'cbc', 'BBD'], 'BB', 'bbc')])
-def test_find_first_like_ok1(capsys, lst, starts, res):
+def test_find_first_like_ok1(capsys: pytest.CaptureFixture[str],
+                             lst: list[str], starts: str,
+                             res: str) -> None:
     """Test OK cases of _find_first_like."""
     ret = ExcludeInfo._find_first_like(lst=deepcopy(lst),  # pylint: disable=protected-access # noqa: E501
                                        starts_with=deepcopy(starts))
@@ -26,7 +28,9 @@ def test_find_first_like_ok1(capsys, lst, starts, res):
 @pytest.mark.parametrize('lst,starts,msgs',
                          [(['abc', 'bbc', 'cbc', 'BBD'], 'dc',
                            ['Did not find "dc" in'])])
-def test_find_first_like_nok1(capsys, lst, starts, msgs):
+def test_find_first_like_nok1(capsys: pytest.CaptureFixture[str],
+                              lst: list[str], starts: str,
+                              msgs: list[str]) -> None:
     """Test not OK cases of _find_first_like."""
     with pytest.raises(ValueError) as exc:
         _ = ExcludeInfo._find_first_like(lst=deepcopy(lst),  # pylint: disable=protected-access # noqa: E501
@@ -45,7 +49,9 @@ def test_find_first_like_nok1(capsys, lst, starts, msgs):
                             ('ab', '1.2.4')],
                            {'ab': ['1.2.4', '6.7.8'],
                             'de': ['3.4.5']})])
-def test_store_pkg_ver(capsys, tostore, res):
+def test_store_pkg_ver(capsys: pytest.CaptureFixture[str],
+                       tostore: list[tuple[str, str]],
+                       res: dict[str, list[str]]) -> None:
     """Test OK cases of ExcludeInfo.store_pkg_ver."""
     exi = ExcludeInfo(txt='some text', csv_filename=None)
     for i in tostore:
@@ -81,7 +87,9 @@ RES2 = {
 @pytest.mark.parametrize('csvtxt,res,txt',
                          [(CSVTXT1, RES1, 'some text'),
                           (CSVTXT2, RES2, 'another textß')])
-def test_store_parsed_csv_ok1(capsys, csvtxt, res, txt):
+def test_store_parsed_csv_ok1(capsys: pytest.CaptureFixture[str],
+                              csvtxt: str, res: dict[str, list[str]],
+                              txt: str) -> None:
     """Test OK cases of ExcludeInfo.store_parsed_csv."""
     excl = ExcludeInfo(txt=deepcopy(txt), csv_filename=None)
     with TemporaryDirectory() as dirname:
@@ -100,7 +108,10 @@ def test_store_parsed_csv_ok1(capsys, csvtxt, res, txt):
 @pytest.mark.parametrize('csvtxt,res, txt',
                          [(CSVTXT1, RES1, 'init text'),
                           (CSVTXT2, RES2, 'other text')])
-def test_construct_exclude_info_ok1(capsys, csvtxt, res, txt):
+def test_construct_exclude_info_ok1(capsys: pytest.CaptureFixture[str],
+                                    csvtxt: str,
+                                    res: dict[str, list[str]],
+                                    txt: str) -> None:
     """Test OK cases of ExcludeInfo.__init__."""
     with TemporaryDirectory() as dirname:
         fname = dirname + '/a.csv'
@@ -115,7 +126,8 @@ def test_construct_exclude_info_ok1(capsys, csvtxt, res, txt):
         assert '' == err
 
 
-def test_store_parsed_csv_no_file(capsys):
+def test_store_parsed_csv_no_file(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test error case no file of ExcludeInfo.store_parsed_csv."""
     excl = ExcludeInfo(txt='Some text', csv_filename=None)
     with TemporaryDirectory() as dirname:
@@ -129,7 +141,8 @@ def test_store_parsed_csv_no_file(capsys):
         assert f"No such file or directory: '{fname}'" in err
 
 
-def test_store_parsed_csv_no_name(capsys):
+def test_store_parsed_csv_no_name(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test error case no name column of ExcludeInfo.store_parsed_csv."""
     txt = """hash,version,id
     1b3235432, 1.2.1, ABC-1
@@ -148,7 +161,8 @@ def test_store_parsed_csv_no_name(capsys):
         assert f'Unable to parse CSV file {fname}' in err
 
 
-def test_store_parsed_csv_no_ver(capsys):
+def test_store_parsed_csv_no_ver(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test error case no version column of ExcludeInfo.store_parsed_csv."""
     txt = """hash,release,name of it
     1b3235432, 1.2.1, ABC-1
@@ -167,7 +181,7 @@ def test_store_parsed_csv_no_ver(capsys):
         assert f'Unable to parse CSV file {fname}' in err
 
 
-def test_excl_info_str(capsys):
+def test_excl_info_str(capsys: pytest.CaptureFixture[str]) -> None:
     """Test normal case of str on ExcludeInfo."""
     with TemporaryDirectory() as dirname:
         fname = dirname + '/a.csv'
@@ -215,7 +229,9 @@ EXCL = [
                            construct_pkgs(EXCL)),
                           (CSVTXT1, construct_pkgs(sorted(NOEXCL+EXCL)),
                            construct_pkgs(NOEXCL), construct_pkgs(EXCL))])
-def test_split_in_keep_and_excl1(capsys, csvtxt, ind, reskeep, resexcl):
+def test_split_in_keep_and_excl1(capsys: pytest.CaptureFixture[str],
+                                 csvtxt: str, ind: Pkgs,
+                                 reskeep: Pkgs, resexcl: Pkgs) -> None:
     """Test OK cases of ExcludeInfo.split_in_keep_and_exclude."""
     excl = ExcludeInfo(txt='', csv_filename=None)
     with TemporaryDirectory() as dirname:

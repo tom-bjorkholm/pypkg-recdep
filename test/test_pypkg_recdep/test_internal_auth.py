@@ -10,7 +10,7 @@ import requests
 from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth
 
 
-def test_noauth_ok1(capsys):
+def test_noauth_ok1(capsys: pytest.CaptureFixture[str]) -> None:
     """Test NoAuth returns request unchanged."""
     auth = NoAuth()
     req = requests.Request('GET', 'http://example.com/simple').prepare()
@@ -28,7 +28,8 @@ def test_noauth_ok1(capsys):
                          [('http://example.com/simple', 'GET'),
                           ('https://pypi.org/simple', 'POST'),
                           ('http://internal.server/api', 'PUT')])
-def test_noauth_ok2(capsys, url, method):
+def test_noauth_ok2(capsys: pytest.CaptureFixture[str], url: str,
+                    method: str) -> None:
     """Test NoAuth with different URLs and methods."""
     auth = NoAuth()
     req = requests.Request(method, url).prepare()
@@ -44,7 +45,8 @@ def test_noauth_ok2(capsys, url, method):
     assert '' == err
 
 
-def test_noauth_with_existing_headers(capsys):
+def test_noauth_with_existing_headers(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test NoAuth preserves existing headers."""
     auth = NoAuth()
     req = requests.Request('GET', 'http://example.com/simple',
@@ -70,7 +72,8 @@ def test_noauth_with_existing_headers(capsys):
                           'Bearer_token_xyz',
                           'short',
                           'a' * 100])
-def test_tokenauth_ok1(capsys, token):
+def test_tokenauth_ok1(capsys: pytest.CaptureFixture[str],
+                       token: str) -> None:
     """Test TokenAuth adds authorization header with different tokens."""
     auth = TokenAuth(token=token)
     req = requests.Request('GET', 'http://example.com/simple').prepare()
@@ -88,7 +91,8 @@ def test_tokenauth_ok1(capsys, token):
                           ('token2', 'https://pypi.org/simple', 'POST'),
                           ('token3', 'http://internal.server/api', 'PUT'),
                           ('token4', 'https://test.org/packages', 'DELETE')])
-def test_tokenauth_ok2(capsys, token, url, method):
+def test_tokenauth_ok2(capsys: pytest.CaptureFixture[str], token: str,
+                       url: str, method: str) -> None:
     """Test TokenAuth with different tokens, URLs, and methods."""
     auth = TokenAuth(token=token)
     req = requests.Request(method, url).prepare()
@@ -103,7 +107,8 @@ def test_tokenauth_ok2(capsys, token, url, method):
     assert '' == err
 
 
-def test_tokenauth_preserves_headers(capsys):
+def test_tokenauth_preserves_headers(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test TokenAuth preserves existing headers."""
     token = 'test_token_preserve'
     auth = TokenAuth(token=token)
@@ -126,7 +131,8 @@ def test_tokenauth_preserves_headers(capsys):
     assert '' == err
 
 
-def test_tokenauth_overwrites_existing_auth(capsys):
+def test_tokenauth_overwrites_existing_auth(
+        capsys: pytest.CaptureFixture[str]) -> None:
     """Test TokenAuth overwrites existing Authorization header."""
     token = 'new_token_123'
     auth = TokenAuth(token=token)
@@ -147,7 +153,8 @@ def test_tokenauth_overwrites_existing_auth(capsys):
 
 @pytest.mark.parametrize('token',
                          ['token_a', 'token_b', 'token_c'])
-def test_tokenauth_multiple_calls(capsys, token):
+def test_tokenauth_multiple_calls(capsys: pytest.CaptureFixture[str],
+                                  token: str) -> None:
     """Test TokenAuth can be called multiple times with same instance."""
     auth = TokenAuth(token=token)
     req1 = requests.Request('GET', 'http://example.com/api1').prepare()
@@ -170,7 +177,7 @@ def test_tokenauth_multiple_calls(capsys, token):
     assert '' == err
 
 
-def test_tokenauth_stores_token(capsys):
+def test_tokenauth_stores_token(capsys: pytest.CaptureFixture[str]) -> None:
     """Test TokenAuth correctly stores the token."""
     token = 'stored_token_test'
     auth = TokenAuth(token=token)
@@ -184,7 +191,8 @@ def test_tokenauth_stores_token(capsys):
                          [('token_x', 'token_y'),
                           ('abc', 'xyz'),
                           ('first', 'second')])
-def test_tokenauth_different_instances(capsys, token1, token2):
+def test_tokenauth_different_instances(capsys: pytest.CaptureFixture[str],
+                                       token1: str, token2: str) -> None:
     """Test different TokenAuth instances use their own tokens."""
     auth1 = TokenAuth(token=token1)
     auth2 = TokenAuth(token=token2)

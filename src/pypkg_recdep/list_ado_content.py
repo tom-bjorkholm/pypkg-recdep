@@ -87,7 +87,7 @@ def print_pkgs(pkgs: Pkgs, file_name: str) -> None:
 get_headers_per_file: dict[str, dict[str, str]] = {}
 
 
-def get_headers(pat_file: str) -> dict[str, str]:
+def get_headers(pat_file: Optional[str]) -> dict[str, str]:
     """Get headers to use for REST request based on PAT in file.
 
     The personal access token(s) (PAT) is in file(s). Get the HTTPS headers
