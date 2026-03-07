@@ -13,9 +13,9 @@ This python package is created to automate the collection of information needed 
 
 ## What it does
 
-* It creates a list of all dependencies of a package and includes other information (like licences) that might be needed to evaluate if the use of package is OK in a specific context.
-* It can also make a list of all packages available in an internal ADO server hosting the internal package repository.
-* It creates a list of all dependencies of a package excluding the packages that is already available in your own local collection of packages.
+- It creates a list of all dependencies of a package and includes other information (like licences) that might be needed to evaluate if the use of package is OK in a specific context.
+- It can also make a list of all packages available in an internal ADO server hosting the internal package repository.
+- It creates a list of all dependencies of a package excluding the packages that is already available in your own local collection of packages.
 
 ## For developers
 
@@ -31,29 +31,59 @@ Please see README_pypi.md for information on needed python version. Main develop
 
 #### Zsh
 
-The scripts are all zsh. zsh is available by default on modern macs. zsh can easily be installed on Linux (on Ubuntu: `sudo apt install zsh`).
+Some scripts are Python but there are also needed scripts in zsh. zsh is available by default on modern macs. zsh can easily be installed on Linux (on Ubuntu: `sudo apt install zsh`).
 
 ### Internal APIs not guaranteed
 
 The internal APIs in this package are not guaranteed to be stable. They can change without warning between versions.
 
-### Quick start
+### Cloning
 
-1. Clone this repository
-2. Run `./setup_build_environment.zsh` to set up the build environment
-3. Run `./doBuild.zsh` to build and test the package
+The mformat repo uses submodules. To clone it use the command:
+
+````sh
+git clone --recurse-submodules git@bitbucket.org:tom-bjorkholm/mformat.git
+````
+
+If you forgot to include the `--recurse-submodules` in your `git clone` command
+you can fix it later with the command:
+
+````sh
+git submodule update --init --recursive 
+````
+
+To update the version of thr submodule repo that you see in the main repo use the command:
+
+````sh
+git submodule update --remote --merge
+````
 
 ### Building application
 
-There are 3 scripts for building the application:
+There are 3 main scripts (and 2 extra convinience scripts) for building the application:
 
-* `setup_build_environment.zsh` Run this script first to get the environment set up for building
-* `doBuild.zsh` Run this script to build an installation package (.whl) and to run the tests on it in a venv (virtual environment).
-* `clean.zsh` Deletes all files that was produced by the build to start over from a clean state.
+- `run_setup_build_environment.py` Run this script first to get the
+  environment set up for building.
+- `run_build.py` Run this script to build an installation package (.whl) and
+  to run the tests on it in a venv (virtual environment).
+- `run_clean.py` Deletes all files that was produced by the build to start
+  over from a clean state.
+- `run_clean_build.py` Combines the use of `run_clean.py`,
+  `run_setup_build_environment.py` and `run_build.py` into one script.
+  Pylint discover some duplicate code warnings only on a clean build so this
+  is useful.
+- `run_pypi_build.py` Builds for PyPI upload and can do the upload too.
 
 The "testing" includes pytest, pylint, flake8 and mypy.
 
-After running `doBuild.zsh` you can open `reports/index.htm` to see all test reports.
+After running `run_build.py` you can open `reports/index.html` to see all test
+reports.
+
+### More build system information
+
+The file `./common_build_tools/README.md` (in git submodule - see above) contains more
+information about the build system. This README can also be viewed at
+[https://bitbucket.org/tom-bjorkholm/common_build_tools/src/master/README.md](https://bitbucket.org/tom-bjorkholm/common_build_tools/src/master/README.md)
 
 ### Integration tests towards PyPI.org
 
@@ -73,7 +103,7 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 
 ## Test summary
 
-* Test result: 461 passed, 2 skipped in 6s
-* No Flake8 warnings.
-* No mypy errors found.
-* 0.5.1 built and tested using python version: Python 3.14.3
+- Test result: 461 passed, 2 skipped in 6s
+- No Flake8 warnings.
+- No mypy errors found.
+- 0.5.1 built and tested using python version: Python 3.14.3

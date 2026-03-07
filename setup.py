@@ -14,7 +14,7 @@ setup(
   package_dir={'pypkg_recdep': 'src/pypkg_recdep'},
   package_data={'ppypkg_recdep': ['src/py.typed']},
   install_requires=[
-    'mformat >= 0.3',
+    'mformat >= 0.5',
     'pypi-simple >= 1.8.0',
     'packaging >= 26.0',
     'argcomplete >= 3.6.3',
