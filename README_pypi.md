@@ -40,6 +40,7 @@ To limit the number of dependencies of pypkg-recdep (as you might want to instal
 
 | Version | Date        | Python version  | Description                         |
 |---------|-------------|-----------------|-------------------------------------|
+| 0.6     | 08 Mar 2026 | 3.12 or newer   | More output formats and minor fixes |
 | 0.5     | 18 Feb 2026 | 3.12 or newer   | Improved with newer dependencies    |
 | 0.4     | 01 Feb 2026 | 3.12 or newer   | Additional output formats           |
 | 0.3     | 18 Dec 2025 | 3.12 or newer   | Fixed edge cases                    |
