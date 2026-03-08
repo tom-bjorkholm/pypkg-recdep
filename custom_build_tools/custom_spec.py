@@ -6,4 +6,4 @@ from build_spec import BuildSpec
 
 def custom_spec() -> Optional[BuildSpec]:
     """Return custom build spec for this repository."""
-    return None
+    return BuildSpec(readme_summary_max_skipped=4)

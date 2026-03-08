@@ -103,7 +103,8 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 
 ## Test summary
 
-- Test result: 461 passed, 2 skipped in 6s
+- Test result: 597 passed, 2 skipped in 9s
 - No Flake8 warnings.
 - No mypy errors found.
-- 0.5.1 built and tested using python version: Python 3.14.3
+- Built version(s): 0.6
+- Build and test using Python 3.14.3

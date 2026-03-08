@@ -24,11 +24,11 @@ pip install --upgrade pypkg-recdep
 
 ## What it does
 
-* It creates a list of all dependencies of a package on PyPI and includes other information (like licences) that might be needed to evaluate if the use of package is OK in a specific context.
-  * All dependencies includes not only the direct dependencies but also the indirect dependencies of the dependencies.
-* It can also make a list of all packages available in an internal Azure Devops (ADO) server hosting the internal package repository.
-* It can also make a list of all packages available in an internal server using PyPI protocols hosting the internal package repository.
-* The lists of internally available packages can be used to as input when creating the list of all dependencies of a package on PyPI. Then the produced output differentiates between internally already available packages and packages that need to be processed to become available internally.
+- It creates a list of all dependencies of a package on PyPI and includes other information (like licences) that might be needed to evaluate if the use of package is OK in a specific context.
+  - All dependencies includes not only the direct dependencies but also the indirect dependencies of the dependencies.
+- It can also make a list of all packages available in an internal Azure Devops (ADO) server hosting the internal package repository.
+- It can also make a list of all packages available in an internal server using PyPI protocols hosting the internal package repository.
+- The lists of internally available packages can be used to as input when creating the list of all dependencies of a package on PyPI. Then the produced output differentiates between internally already available packages and packages that need to be processed to become available internally.
 
 ## Output formats
 
@@ -198,7 +198,8 @@ Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypk
 
 ## Test summary
 
-* Test result: 461 passed, 2 skipped in 6s
-* No Flake8 warnings.
-* No mypy errors found.
-* 0.5.1 built and tested using python version: Python 3.14.3
+- Test result: 597 passed, 2 skipped in 9s
+- No Flake8 warnings.
+- No mypy errors found.
+- Built version(s): 0.6
+- Build and test using Python 3.14.3
