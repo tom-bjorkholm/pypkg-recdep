@@ -9,22 +9,14 @@ from tempfile import TemporaryDirectory
 import csv
 import os
 import re
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 import pytest
+from test_list_ado_content import MockResponse
+from test_internal_serv_listing import MockListClient, create_test_list_data
+from test_find_pypi_deps2 import MockClient1, MockSpecPage, MockSpecMeta, \
+    LookupWhat, create_test_pkg_spec
 from pypkg_recdep.pkg_recdep_cmd import pypkg_recdep_cmd
 from pypkg_recdep.list_ado_content import PkgInfo, SinglePkgInfo
-if TYPE_CHECKING:
-    from test.test_pypkg_recdep.test_list_ado_content import MockResponse
-    from test.test_pypkg_recdep.test_internal_serv_listing import \
-        MockListClient, create_test_list_data
-    from test.test_pypkg_recdep.test_find_pypi_deps2 import MockClient1, \
-        MockSpecPage, MockSpecMeta, LookupWhat, create_test_pkg_spec
-else:
-    from test_list_ado_content import MockResponse
-    from test_internal_serv_listing import MockListClient, \
-        create_test_list_data
-    from test_find_pypi_deps2 import MockClient1, MockSpecPage, \
-        MockSpecMeta, LookupWhat, create_test_pkg_spec
 
 
 # Section with tests of printdeps subcommand

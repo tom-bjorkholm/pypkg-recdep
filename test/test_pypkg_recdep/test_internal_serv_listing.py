@@ -5,7 +5,7 @@
 # MIT License
 
 from copy import deepcopy
-from typing import Optional, TYPE_CHECKING, cast
+from typing import Optional, cast
 import re
 import csv
 from tempfile import TemporaryDirectory
@@ -16,15 +16,11 @@ from pypi_simple import PyPISimple, IndexPage, ProjectPage, \
     DigestMismatchError
 from requests.auth import AuthBase
 import requests
+from get_example_pypi_list_data import load_example_pypi_list_data
 from pypkg_recdep.pkg_info import PkgKey, MockListData
 from pypkg_recdep.internal_server_listing import NoAuth, TokenAuth, \
     read_token_from_file, get_auth, get_meta, store_pkg, \
     list_for_projects, list_in_internal_server
-if TYPE_CHECKING:
-    from test.test_pypkg_recdep.get_example_pypi_list_data import \
-        load_example_pypi_list_data
-else:
-    from get_example_pypi_list_data import load_example_pypi_list_data
 
 
 class MockListClient:  # pylint: disable=too-many-instance-attributes

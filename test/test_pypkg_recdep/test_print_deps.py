@@ -8,10 +8,11 @@ from copy import deepcopy
 from tempfile import TemporaryDirectory
 from io import StringIO
 from types import SimpleNamespace
-from typing import Optional, TYPE_CHECKING, cast
+from typing import Optional, cast
 import sys
 import pytest
 from mformat.factory import create_mf
+from test_find_pypi_deps2 import MockClient1, LookupWhat, create_test_pkg_spec
 from packaging.requirements import Requirement
 from packaging.version import Version
 from pypkg_recdep.print_deps import print_fulfilling_pkg, \
@@ -19,12 +20,6 @@ from pypkg_recdep.print_deps import print_fulfilling_pkg, \
     print_rec_deps, OutputSpec
 from pypkg_recdep.pkg_info import PkgKey, PkgInfo, create_pkginfo, Pkgs
 from pypkg_recdep.exclude import ExcludeInfo
-if TYPE_CHECKING:
-    from test.test_pypkg_recdep.test_find_pypi_deps2 import MockClient1, \
-        LookupWhat, create_test_pkg_spec
-else:
-    from test_find_pypi_deps2 import MockClient1, LookupWhat, \
-        create_test_pkg_spec
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
