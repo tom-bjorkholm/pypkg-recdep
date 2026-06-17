@@ -19,3 +19,7 @@ apps_found_short_log.txt
 deps_found_log.txt
 .cursor
 AGENTS.md
+CLAUDE.md
+./dep_lib_doc
+dep_lib_doc/*
+
