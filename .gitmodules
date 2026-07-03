@@ -1,4 +1,4 @@
 [submodule "common_build_tools"]
 	path = common_build_tools
-	url = git@bitbucket.org:tom-bjorkholm/common_build_tools.git
+	url = git@github.com:tom-bjorkholm/common_build_tools.git
 	branch = master
