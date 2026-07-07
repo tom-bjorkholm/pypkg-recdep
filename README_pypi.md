@@ -36,17 +36,6 @@ In version version 0.3 the only output file format for the dependency informatio
 
 To limit the number of dependencies of pypkg-recdep (as you might want to install it in environment where each extra dependency causes extra work) it lists only mformat [https://pypi.org/project/mformat](https://pypi.org/project/mformat) as a dependency. This gives a limited number of output file formats (like Markdown and HTML). By installing mformat-ext [https://pypi.org/project/mformat-ext](https://pypi.org/project/mformat-ext) together with pypkg-recdep you will automatically get additional output formats (like Microsoft Word docx and LibreOffice Open Document Text odt)-
 
-## Version history
-
-| Version | Date        | Python version  | Description                         |
-|---------|-------------|-----------------|-------------------------------------|
-| 0.6     | 08 Mar 2026 | 3.12 or newer   | More output formats and minor fixes |
-| 0.5     | 18 Feb 2026 | 3.12 or newer   | Improved with newer dependencies    |
-| 0.4     | 01 Feb 2026 | 3.12 or newer   | Additional output formats           |
-| 0.3     | 18 Dec 2025 | 3.12 or newer   | Fixed edge cases                    |
-| 0.2.1   | 14 Dec 2025 | 3.12 or newer   | Bug fix release                     |
-| 0.1     | 15 Aug 2025 | 3.12 or newer   | First released version              |
-
 ## How to use it
 
 ### Use help
@@ -202,5 +191,5 @@ Source code and tests are available at [https://github.com/tom-bjorkholm/pypkg-r
 - No flake8 warnings.
 - No mypy errors found.
 - Python layout report not available.
-- Built version(s): 0.7
+- Built version(s): 0.7.1
 - Build and test using Python 3.14.6

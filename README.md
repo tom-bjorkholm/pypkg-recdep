@@ -107,5 +107,5 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 - No flake8 warnings.
 - No mypy errors found.
 - Python layout report not available.
-- Built version(s): 0.7
+- Built version(s): 0.7.1
 - Build and test using Python 3.14.6
