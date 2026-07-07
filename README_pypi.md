@@ -194,12 +194,13 @@ To run these on a computer running Microsoft Windows just type "python" instead 
 
 ## Source code
 
-Source code and tests are available at [https://bitbucket.org/tom-bjorkholm/pypkg-recdep](https://bitbucket.org/tom-bjorkholm/pypkg-recdep).
+Source code and tests are available at [https://github.com/tom-bjorkholm/pypkg-recdep](https://github.com/tom-bjorkholm/pypkg-recdep).
 
 ## Test summary
 
-- Test result: 597 passed, 2 skipped in 9s
-- No Flake8 warnings.
+- Test result: 638 passed, 2 skipped in 18s
+- No flake8 warnings.
 - No mypy errors found.
+- Python layout warnings.
 - Built version(s): 0.6.1
-- Build and test using Python 3.14.3
+- Build and test using Python 3.14.6

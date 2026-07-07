@@ -19,4 +19,4 @@ classifiers = [
 dynamic = ["dependencies"]
 
 [project.urls]
-"Source code" = "https://bitbucket.org/tom-bjorkholm/pypkg-recdep"
+"Source code" = "https://github.com/tom-bjorkholm/pypkg-recdep"

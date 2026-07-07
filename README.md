@@ -42,7 +42,7 @@ The internal APIs in this package are not guaranteed to be stable. They can chan
 The mformat repo uses submodules. To clone it use the command:
 
 ````sh
-git clone --recurse-submodules git@bitbucket.org:tom-bjorkholm/mformat.git
+git clone --recurse-submodules git@github.com:tom-bjorkholm/pypkg-recdep.git
 ````
 
 If you forgot to include the `--recurse-submodules` in your `git clone` command
@@ -83,7 +83,7 @@ reports.
 
 The file `./common_build_tools/README.md` (in git submodule - see above) contains more
 information about the build system. This README can also be viewed at
-[https://bitbucket.org/tom-bjorkholm/common_build_tools/src/master/README.md](https://bitbucket.org/tom-bjorkholm/common_build_tools/src/master/README.md)
+[https://github.com/tom-bjorkholm/common_build_tools/blob/master/README.md](https://github.com/tom-bjorkholm/common_build_tools/blob/master/README.md)
 
 ### Integration tests towards PyPI.org
 
@@ -103,8 +103,9 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 
 ## Test summary
 
-- Test result: 597 passed, 2 skipped in 9s
-- No Flake8 warnings.
+- Test result: 638 passed, 2 skipped in 18s
+- No flake8 warnings.
 - No mypy errors found.
+- Python layout warnings.
 - Built version(s): 0.6.1
-- Build and test using Python 3.14.3
+- Build and test using Python 3.14.6
