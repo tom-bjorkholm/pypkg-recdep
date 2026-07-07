@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pypkg-recdep"
-version = "0.6.1"
+version = "0.7"
 authors = [
   { name="Tom Björkholm", email="klausuler_linnet0q@icloud.com" },
 ]
@@ -14,7 +14,13 @@ requires-python = ">=3.12"
 license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Typing :: Typed"
 ]
 dynamic = ["dependencies"]
 

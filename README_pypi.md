@@ -198,9 +198,9 @@ Source code and tests are available at [https://github.com/tom-bjorkholm/pypkg-r
 
 ## Test summary
 
-- Test result: 638 passed, 2 skipped in 18s
+- Test result: 638 passed, 2 skipped in 9s
 - No flake8 warnings.
 - No mypy errors found.
-- Python layout warnings.
-- Built version(s): 0.6.1
+- Python layout report not available.
+- Built version(s): 0.7
 - Build and test using Python 3.14.6
