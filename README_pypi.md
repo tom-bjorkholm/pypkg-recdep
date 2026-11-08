@@ -192,5 +192,5 @@ Source code and tests are available at [https://github.com/tom-bjorkholm/pypkg-r
 - No mypy errors found.
 - No pylint warnings.
 - Python layout report not available.
-- Built version(s): 0.8
+- Built version(s): 0.8.1
 - Build and test using Python 3.15.2
