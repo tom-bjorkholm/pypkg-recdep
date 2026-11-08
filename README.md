@@ -109,4 +109,4 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 - No pylint warnings.
 - Python layout report not available.
 - Built version(s): 0.8
-- Build and test using Python 3.14.9
+- Build and test using Python 3.15.2
