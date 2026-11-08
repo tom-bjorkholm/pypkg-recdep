@@ -103,9 +103,10 @@ After running `doBuild.zsh` you can do manual test of the built and installed ap
 
 ## Test summary
 
-- Test result: 638 passed, 2 skipped in 9s
+- Test result: 647 passed, 2 skipped in 11s
 - No flake8 warnings.
 - No mypy errors found.
+- No pylint warnings.
 - Python layout report not available.
-- Built version(s): 0.7.1
-- Build and test using Python 3.14.6
+- Built version(s): 0.8
+- Build and test using Python 3.15.2

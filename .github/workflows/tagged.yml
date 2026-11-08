@@ -1,0 +1,98 @@
+name: Manual CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The git ref to build (branch, tag, or commit SHA)'
+        required: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
+
+    steps:
+      - name: Check out selected ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Run clean build
+        run: |
+          cd common_build_tools && git checkout master && git pull && pwd && cd ..
+          python3 -m pip install --upgrade gitpython
+          python3 ./run_clean_build.py python${{ matrix.python-version }}
+          cp reports/index.html reports/index-${{ matrix.python-version }}_${{ inputs.ref }}.html
+
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports_index-${{ matrix.python-version }}_${{ inputs.ref }}.html
+          path: reports/index-${{ matrix.python-version }}_${{ inputs.ref }}.html
+          archive: false
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ matrix.python-version }}_${{ inputs.ref }}
+          path: reports/
+
+      - name: Upload doc
+        uses: actions/upload-artifact@v7
+        with:
+          name: doc-${{ matrix.python-version }}_${{ inputs.ref }}
+          path: doc/
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ matrix.python-version }}_${{ inputs.ref }}
+          path: dist/
+
+  cleanup-runs:
+    needs: build-and-test
+    runs-on: macos-latest
+    steps:
+      - name: Keep last 3 success, keep newer failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW_ID: tagged.yml
+          KEEP_SUCCESS: "3"
+        run: |
+          set -euo pipefail
+
+          runs_json=$(gh api --paginate "repos/$REPO/actions/workflows/$WORKFLOW_ID/runs?per_page=100")
+          newest_success_created_at=$(echo "$runs_json" | jq -r '.workflow_runs | map(select(.conclusion=="success")) | sort_by(.created_at) | reverse | .[0].created_at // empty')
+
+          success_ids_to_delete=$(echo "$runs_json" | jq -r --argjson keep "$KEEP_SUCCESS" '
+            .workflow_runs
+            | map(select(.conclusion=="success"))
+            | sort_by(.created_at)
+            | reverse
+            | .[$keep:]
+            | .[].id
+          ')
+
+          failed_ids_to_delete=$(echo "$runs_json" | jq -r --arg latest_success "$newest_success_created_at" '
+            .workflow_runs
+            | map(select(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out" or .conclusion=="action_required" or .conclusion=="skipped"))
+            | map(select(.created_at < $latest_success))
+            | .[].id
+          ')
+
+          for id in $success_ids_to_delete $failed_ids_to_delete; do
+            echo "Deleting run $id"
+            gh api -X DELETE "repos/$REPO/actions/runs/$id"
+          done

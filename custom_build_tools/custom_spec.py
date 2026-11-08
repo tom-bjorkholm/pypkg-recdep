@@ -10,5 +10,6 @@ def custom_spec() -> Optional[BuildSpec]:
     return BuildSpec(
         readme_summary_max_skipped=4,
         python_layout_check=False,
+        additional_venv_packages=['types-requests >= 2.33.0.20261030'],
         mypy_paths=[Path('test/test_pypkg_recdep')],
     )
